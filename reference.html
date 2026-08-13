@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>功能参考 — Anoawa 文档</title>
+  <meta name="description" content="Anoawa 完整功能参考：按游戏页面查找每个功能的入口、作用、使用条件与成绩影响。">
+  <style>
+    :root {
+      --bg:#f7f8fc;--surface:#fff;--surface-2:#f1f3f9;--text:#1e2230;--muted:#626a7d;
+      --faint:#8991a4;--line:#e2e5ee;--line-strong:#d2d7e3;--accent:#6957e8;
+      --accent-strong:#5540d8;--accent-soft:#efedff;--mint:#0c8c72;--mint-soft:#e7f7f2;
+      --orange:#9b6811;--orange-soft:#fff7e5;--red:#b44757;--red-soft:#fff0f2;
+      --topbar:64px;--sidebar:252px;--radius:14px;
+      --font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    }
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar) + 24px)}
+    body{margin:0;color:var(--text);background:var(--bg);font-family:var(--font);font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
+    a{color:inherit}button,input{font:inherit}:focus-visible{outline:3px solid rgba(105,87,232,.35);outline-offset:3px}
+    .topbar{position:sticky;top:0;z-index:50;height:var(--topbar);border-bottom:1px solid rgba(210,215,227,.82);background:rgba(247,248,252,.9);backdrop-filter:blur(18px)}
+    .topbar-inner{width:min(1440px,100%);height:100%;margin:0 auto;padding:0 28px;display:flex;align-items:center;gap:18px}
+    .brand{display:inline-flex;align-items:center;gap:11px;color:var(--text);font-weight:750;letter-spacing:-.02em;text-decoration:none}
+    .brand-mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#7c6cf0,#4e3bcc);box-shadow:0 7px 16px rgba(105,87,232,.24);font-size:15px}
+    .brand small{margin-left:2px;color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.04em}
+    .top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}.top-link,.menu-button{min-height:38px;padding:8px 13px;border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;font-size:14px;font-weight:650;text-decoration:none;cursor:pointer}
+    .top-link:hover,.menu-button:hover{color:var(--text);background:var(--surface);border-color:var(--line)}.top-link.primary{color:#fff;background:var(--accent)}.top-link.primary:hover{color:#fff;background:var(--accent-strong);border-color:transparent}.menu-button{display:none}
+    .docs-layout{width:min(1440px,100%);margin:0 auto;padding:0 28px;display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);gap:clamp(38px,5vw,78px)}
+    .sidebar{position:sticky;top:var(--topbar);height:calc(100vh - var(--topbar));padding:30px 18px 40px 0;overflow-y:auto;border-right:1px solid var(--line)}
+    .nav-group+.nav-group{margin-top:26px}.nav-label{margin:0 0 7px 12px;color:var(--faint);font-size:11px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}.side-nav{display:grid;gap:2px}
+    .side-nav a{padding:7px 11px;border-radius:8px;color:var(--muted);font-size:14px;line-height:1.4;text-decoration:none;transition:background .16s,color .16s}.side-nav a:hover{color:var(--text);background:var(--surface-2)}.side-nav a.active{color:var(--accent-strong);background:var(--accent-soft);font-weight:650}
+    .sidebar-meta{margin:28px 11px 0;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;line-height:1.65}.sidebar-meta a{color:var(--accent-strong);font-weight:700;text-decoration:none}
+    main{min-width:0;padding:48px 0 100px}.article{width:min(920px,100%)}.breadcrumb{color:var(--faint);font-size:13px;font-weight:600}
+    .hero{padding:8px 0 46px;border-bottom:1px solid var(--line)}.hero h1{margin:16px 0 0;font-size:clamp(38px,6vw,58px);line-height:1.12;letter-spacing:-.055em}.lead{max-width:730px;margin:19px 0 0;color:var(--muted);font-size:clamp(17px,2vw,20px)}
+    .mode-note{margin-top:22px;padding:14px 17px;border-left:4px solid var(--accent);border-radius:9px;color:#514b6c;background:var(--accent-soft);font-size:14px}.mode-note a{color:var(--accent-strong);font-weight:750;text-decoration:none}
+    .search-wrap{position:relative;margin-top:25px}.search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:18px}.search{width:100%;height:52px;padding:0 92px 0 46px;border:1px solid var(--line-strong);border-radius:12px;color:var(--text);background:var(--surface);box-shadow:0 6px 18px rgba(31,35,48,.04);font-size:15px}.search::placeholder{color:var(--faint)}.key{position:absolute;right:13px;top:50%;transform:translateY(-50%);padding:3px 8px;border:1px solid var(--line);border-radius:6px;color:var(--faint);background:var(--surface-2);font-size:11px;font-weight:700}.search-status{min-height:22px;margin:8px 2px 0;color:var(--faint);font-size:12px}
+    .ref-section{padding:55px 0 0}.section-kicker{margin:0 0 7px;color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}h2{margin:0;font-size:clamp(27px,4vw,35px);line-height:1.25;letter-spacing:-.035em}.section-intro{max-width:720px;margin:11px 0 0;color:var(--muted)}
+    .ref-list{margin-top:23px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);box-shadow:0 5px 16px rgba(31,35,48,.025)}
+    .ref-item{padding:20px 22px}.ref-item+.ref-item{border-top:1px solid var(--line)}.ref-top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.ref-top h3{margin:0;font-size:17px;line-height:1.4;letter-spacing:-.01em}.path{margin-left:auto;color:var(--faint);font-size:12px;font-weight:650;text-align:right}.ref-item>p{margin:8px 0 0;color:var(--muted);font-size:14px}
+    .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}.tag{padding:3px 7px;border-radius:5px;color:var(--muted);background:var(--surface-2);font-size:11px;font-weight:700}.tag.login{color:var(--accent-strong);background:var(--accent-soft)}.tag.safe{color:var(--mint);background:var(--mint-soft)}.tag.warn{color:var(--orange);background:var(--orange-soft)}.tag.score{color:var(--red);background:var(--red-soft)}
+    .empty{display:none;margin-top:30px;padding:35px;border:1px dashed var(--line-strong);border-radius:var(--radius);color:var(--muted);background:var(--surface);text-align:center}.empty.show{display:block}.ref-item[hidden],.ref-section[hidden]{display:none}
+    .article-footer{margin-top:72px;padding:28px 0 0;display:flex;flex-wrap:wrap;gap:12px 24px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}.article-footer a{color:var(--muted);font-weight:650;text-decoration:none}.article-footer a:hover{color:var(--accent)}
+    @media(max-width:960px){.topbar-inner,.docs-layout{padding-left:20px;padding-right:20px}.docs-layout{grid-template-columns:1fr}.sidebar{position:fixed;inset:var(--topbar) auto 0 0;z-index:45;width:min(320px,86vw);height:calc(100vh - var(--topbar));padding:24px 22px 36px;border-right:1px solid var(--line-strong);background:var(--surface);box-shadow:16px 0 40px rgba(31,35,48,.12);transform:translateX(-105%);transition:transform .22s ease}.sidebar.open{transform:translateX(0)}.menu-button{display:inline-flex;align-items:center}main{padding-top:38px}.article{margin:0 auto}}
+    @media(max-width:720px){:root{--topbar:58px}.topbar-inner,.docs-layout{padding-left:16px;padding-right:16px}.brand small,.top-actions .top-link:not(.primary){display:none}.menu-button,.top-link.primary{white-space:nowrap}.ref-section{padding-top:48px}.ref-item{padding:18px}.path{width:100%;margin-left:0;text-align:left}.key{display:none}.search{padding-right:16px}.top-link{padding:7px 10px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition-duration:.001ms!important}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <button class="menu-button" type="button" aria-label="打开功能目录" aria-controls="sidebar" aria-expanded="false">☰ 目录</button>
+      <a class="brand" href="#overview"><span class="brand-mark">A</span><span>Anoawa</span><small>功能参考</small></a>
+      <nav class="top-actions" aria-label="快捷链接">
+        <a class="top-link" href="index.html">使用指南</a>
+        <a class="top-link primary" href="index.html#download">获取游戏</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="sidebar" id="sidebar" aria-label="功能目录">
+      <div class="nav-group">
+        <p class="nav-label">功能参考</p>
+        <nav class="side-nav">
+          <a href="#overview" class="active">如何使用本页</a>
+          <a href="#main-menu">主菜单</a>
+          <a href="#chart-library">谱面库</a>
+          <a href="#chart-detail">谱面详情</a>
+          <a href="#gameplay">游玩与结算</a>
+          <a href="#multiplayer">多人联机</a>
+          <a href="#resource-pack">资源包</a>
+          <a href="#effects">演出编辑器</a>
+          <a href="#settings">设置</a>
+          <a href="#account">账号与社区</a>
+        </nav>
+      </div>
+      <p class="sidebar-meta">这里解释“每个功能是什么”。<br><br>需要完整操作流程？<br><a href="index.html">返回使用指南 →</a></p>
+    </aside>
+
+    <main>
+      <article class="article">
+        <header class="hero" id="overview">
+          <div class="breadcrumb">Anoawa 文档&nbsp; / &nbsp;功能参考</div>
+          <h1>每个功能，<br>具体做什么</h1>
+          <p class="lead">按游戏页面查找按钮、选项和工具。每项都标出入口、用途、使用条件，以及它是否会影响成绩或排行榜。</p>
+          <div class="mode-note"><strong>与使用指南的区别：</strong>这里适合快速查一个具体功能；如果你想从头完成一件事，请看<a href="index.html">使用指南</a>。</div>
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input class="search" id="feature-search" type="search" placeholder="搜索功能，例如：练习模式、视频背景、排行榜" autocomplete="off">
+            <span class="key">⌘ K</span>
+          </div>
+          <p class="search-status" id="search-status" aria-live="polite">共 73 项功能</p>
+        </header>
+
+        <section class="ref-section" id="main-menu">
+          <p class="section-kicker">Page 01</p><h2>主菜单</h2><p class="section-intro">进入游戏后最常用的一级入口。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="谱面库 曲库 歌曲 本地 在线"><div class="ref-top"><h3>谱面库</h3><span class="path">主菜单 › 谱面库</span></div><p>管理本地谱面、浏览社区曲库、查看热榜或随机选择谱面，也是开始单人游玩的主要入口。</p><div class="tags"><span class="tag safe">本地可用</span><span class="tag login">在线功能需登录</span></div></article>
+            <article class="ref-item" data-keywords="联机 多人 房间"><div class="ref-top"><h3>联机</h3><span class="path">主菜单 › 联机</span></div><p>加入或创建多人房间，与其他玩家同步选曲和游玩。提供竞技房与娱乐房两种模式。</p><div class="tags"><span class="tag login">需登录</span><span class="tag">需联网</span></div></article>
+            <article class="ref-item" data-keywords="资源包 皮肤 换皮"><div class="ref-top"><h3>资源包</h3><span class="path">主菜单 › 资源包</span></div><p>导入、应用、编辑和导出外观资源，替换音符、轨道、判定特效、音效与颜色。</p><div class="tags"><span class="tag safe">本地功能</span></div></article>
+            <article class="ref-item" data-keywords="搭档 立绘 角色"><div class="ref-top"><h3>搭档</h3><span class="path">主菜单 › 搭档</span></div><p>选择主菜单和结算页显示的搭档立绘与对话。仅改变展示，不影响判定或分数。</p><div class="tags"><span class="tag safe">不影响成绩</span></div></article>
+            <article class="ref-item" data-keywords="设置 延迟 语言 性能"><div class="ref-top"><h3>设置</h3><span class="path">主菜单 › 设置</span></div><p>调整游戏、音频、画面、延迟、语言、缓存等全局选项。</p></article>
+            <article class="ref-item" data-keywords="账号 登录 头像 个人资料"><div class="ref-top"><h3>账号与个人资料</h3><span class="path">主菜单 › 头像 / 账号</span></div><p>登录、注册或修改昵称、头像、Bilibili UID 和密码，并查看账号状态。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="chart-library">
+          <p class="section-kicker">Page 02</p><h2>谱面库</h2><p class="section-intro">四个标签负责不同的谱面来源与发现方式。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="本地 已下载 谱面"><div class="ref-top"><h3>本地</h3><span class="path">谱面库 › 本地</span></div><p>显示已经导入或下载到当前设备的谱面。无需联网即可打开与游玩。</p><div class="tags"><span class="tag safe">离线可用</span></div></article>
+            <article class="ref-item" data-keywords="在线 社区 下载"><div class="ref-top"><h3>在线</h3><span class="path">谱面库 › 在线</span></div><p>浏览社区全部公开谱面。下载完成后才会出现“开始游戏”。</p><div class="tags"><span class="tag login">需登录</span><span class="tag">需联网</span></div></article>
+            <article class="ref-item" data-keywords="热榜 日榜 周榜 月榜 热门"><div class="ref-top"><h3>热榜</h3><span class="path">谱面库 › 热榜</span></div><p>按日、周、月查看社区热门谱面，用于发现最近游玩和互动较多的内容。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="随机 抽歌"><div class="ref-top"><h3>随机</h3><span class="path">谱面库 › 随机</span></div><p>从可用谱面中随机抽取一张，适合不知道玩什么时快速选曲。</p></article>
+            <article class="ref-item" data-keywords="搜索 曲名 谱师 曲师"><div class="ref-top"><h3>搜索</h3><span class="path">谱面库 › 搜索框</span></div><p>按关键词筛选谱面。在线搜索会请求社区曲库，本地搜索只检查当前设备内容。</p></article>
+            <article class="ref-item" data-keywords="排序 最新 更新 游玩 点赞 时长 bpm 曲名"><div class="ref-top"><h3>排序</h3><span class="path">谱面库 › 排序</span></div><p>在线列表可按最新上传、最近更新、最多游玩、最多点赞、时长、Base BPM 或曲名排列。</p></article>
+            <article class="ref-item" data-keywords="导入 zip 7z rar 文件夹 批量"><div class="ref-top"><h3>导入</h3><span class="path">谱面库 › 右上角“导入”</span></div><p>选择 ZIP / 7Z / RAR 压缩包或谱面文件夹。选择包含多个关卡子目录的文件夹时会批量扫描。</p><div class="tags"><span class="tag safe">本地功能</span></div></article>
+            <article class="ref-item" data-keywords="导入说明 目录结构 格式"><div class="ref-top"><h3>导入说明</h3><span class="path">谱面库 › 导入旁</span></div><p>查看谱面、音频、封面、背景、视频和歌曲信息文件的命名与目录要求。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="chart-detail">
+          <p class="section-kicker">Page 03</p><h2>谱面详情</h2><p class="section-intro">选中谱面后，用于准备游玩、查看社区信息或管理自己的作品。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="难度 past present future beyond eternal"><div class="ref-top"><h3>难度选择</h3><span class="path">谱面详情 › 难度</span></div><p>在 Past、Present、Future、Beyond、Eternal 五档中选择谱面实际提供的难度。</p></article>
+            <article class="ref-item" data-keywords="流速 note speed"><div class="ref-top"><h3>流速</h3><span class="path">谱面详情 › 流速</span></div><p>改变音符在屏幕上的移动速度，不改变歌曲速度、判定窗口或排行榜资格。</p><div class="tags"><span class="tag safe">不影响成绩</span></div></article>
+            <article class="ref-item" data-keywords="开始游戏 开始游玩"><div class="ref-top"><h3>开始游戏</h3><span class="path">谱面详情 › 开始游戏</span></div><p>使用当前难度、流速与 Mod 配置进入游玩。在线谱面必须先下载到本地。</p></article>
+            <article class="ref-item" data-keywords="mod 自动游玩 蛇不锁手 轨道 不倾斜 变速 fov"><div class="ref-top"><h3>Mod 设置</h3><span class="path">谱面详情 › Mod 设置</span></div><p>包含自动游玩、蛇不锁手、接蛇轨道不倾斜、变速、FOV 系数和练习模式。</p><div class="tags"><span class="tag score">开启后不上传成绩</span></div></article>
+            <article class="ref-item" data-keywords="练习模式 区间 循环 段落"><div class="ref-top"><h3>练习模式</h3><span class="path">Mod 设置 › 练习模式</span></div><p>指定歌曲的一段区间进行针对性练习，适合反复处理难点段落。</p><div class="tags"><span class="tag score">不上传成绩</span></div></article>
+            <article class="ref-item" data-keywords="排行榜 top100 我的排名"><div class="ref-top"><h3>排行榜</h3><span class="path">谱面详情 › 排行榜</span></div><p>查看当前在线谱面的 Top 100 与“我的排名”。只有符合条件的正常游玩成绩会进入榜单。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="下载谱面 更新 在线"><div class="ref-top"><h3>下载 / 更新谱面</h3><span class="path">在线谱面详情</span></div><p>把社区谱面保存到本地；在线版本更新后可重新下载最新资源。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="点赞 like"><div class="ref-top"><h3>点赞</h3><span class="path">谱面详情 / 结算页</span></div><p>为在线谱面点赞，影响社区互动数据与热门发现。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="复制手元简介 b站 视频 曲名 谱师"><div class="ref-top"><h3>复制手元简介</h3><span class="path">谱面详情 › 复制手元简介</span></div><p>将曲名、曲师、难度和谱师整理成文本，方便粘贴到手元或试玩视频简介。</p></article>
+            <article class="ref-item" data-keywords="编辑谱面信息 曲师 谱师 画师 bpm 标签 主题色 预览"><div class="ref-top"><h3>编辑谱面信息</h3><span class="path">自己的谱面 › 编辑信息</span></div><p>修改曲名、曲师、谱师、画师、难度标记、Base BPM、简介、标签、主题色与预览区间。</p><div class="tags"><span class="tag warn">仅有权限的谱面</span></div></article>
+            <article class="ref-item" data-keywords="上传谱面 tus 审核 加密 允许导出"><div class="ref-top"><h3>上传谱面</h3><span class="path">自己的谱面 › 上传</span></div><p>将谱面分块上传到社区，可选择加密及是否允许他人导出，提交后进入审核流程。</p><div class="tags"><span class="tag login">需登录</span><span class="tag warn">需内容权限</span></div></article>
+            <article class="ref-item" data-keywords="演出效果 shader 背景视频"><div class="ref-top"><h3>演出效果</h3><span class="path">自己的谱面 › 演出效果</span></div><p>打开演出编辑器，为谱面制作后处理动画或配置背景视频。</p><div class="tags"><span class="tag warn">仅可编辑谱面</span></div></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="gameplay">
+          <p class="section-kicker">Page 04</p><h2>游玩与结算</h2><p class="section-intro">游玩中的辅助显示、暂停操作，以及结束后的成绩分析。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="暂停 继续 重试 返回"><div class="ref-top"><h3>暂停菜单</h3><span class="path">游玩中 › 暂停</span></div><p>继续当前对局、重新开始或返回谱面详情。暂停防误触可在设置中调整。</p></article>
+            <article class="ref-item" data-keywords="early late 提示 早 晚"><div class="ref-top"><h3>Early / Late 提示</h3><span class="path">游玩画面 / 设置 › 游戏</span></div><p>显示音符按得偏早还是偏晚，用于观察个人击打趋势。</p><div class="tags"><span class="tag safe">仅辅助显示</span></div></article>
+            <article class="ref-item" data-keywords="高对比度 色觉辅助"><div class="ref-top"><h3>高对比度模式</h3><span class="path">设置 › 显示 / 辅助</span></div><p>增强部分游戏元素的颜色区分，改善色觉辨识或复杂背景下的可读性。</p><div class="tags"><span class="tag safe">不影响成绩</span></div></article>
+            <article class="ref-item" data-keywords="结算 成绩 分数 pure far lost combo"><div class="ref-top"><h3>结算成绩</h3><span class="path">歌曲结束 › 结算</span></div><p>显示分数、评级、Pure / Far / Lost 与连击等真实结果。试算功能不会改写这里的成绩。</p></article>
+            <article class="ref-item" data-keywords="本局分析 直方图 分数曲线 试算滑块 最优偏移"><div class="ref-top"><h3>本局分析</h3><span class="path">结算 › 判定分析 › 左栏</span></div><p>用直方图、分数曲线和试算滑块解释这一局的击打分布，并估算本谱的分数最优偏移。</p><div class="tags"><span class="tag warn">仅针对本局</span></div></article>
+            <article class="ref-item" data-keywords="设备校准 中位偏移 波动 建议判定偏移"><div class="ref-top"><h3>设备校准</h3><span class="path">结算 › 判定分析 › 右栏</span></div><p>跨多局统计中位偏移与波动，给出更接近设备属性的建议判定偏移。</p><div class="tags"><span class="tag safe">推荐长期参考</span></div></article>
+            <article class="ref-item" data-keywords="应用建议 判定偏移"><div class="ref-top"><h3>应用建议偏移</h3><span class="path">设备校准 › 应用</span></div><p>将建议判定偏移写入设置。建议积累多局稳定数据后再应用。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="multiplayer">
+          <p class="section-kicker">Page 05</p><h2>多人联机</h2><p class="section-intro">从寻找房间到选曲、同步下载与多人结算。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="刷新 公开房 房间列表"><div class="ref-top"><h3>公开房列表</h3><span class="path">联机 › 刷新</span></div><p>获取当前可加入的公开房间，并显示房间人数、模式等信息。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="id加入 房间号 私密房"><div class="ref-top"><h3>通过 ID 加入</h3><span class="path">联机 › ID 加入</span></div><p>输入房间号加入私密房，不需要房间出现在公开列表。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="创建房间 房间名 人数 公开性"><div class="ref-top"><h3>创建房间</h3><span class="path">联机 › 创建房间</span></div><p>设置房间名、最大人数、公开性与竞技 / 娱乐模式。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="测速 节点 延迟 ping"><div class="ref-top"><h3>节点测速</h3><span class="path">创建房间 › 测速</span></div><p>测试社区专用节点延迟，帮助房主选择连接状况更好的服务器。</p></article>
+            <article class="ref-item" data-keywords="准备 ready 大厅"><div class="ref-top"><h3>准备</h3><span class="path">房间大厅 › 准备</span></div><p>表示已经完成设置并可以开始选曲；房间流程会等待需要准备的玩家。</p></article>
+            <article class="ref-item" data-keywords="投票选曲 任意 随机"><div class="ref-top"><h3>投票选曲</h3><span class="path">联机 › 选曲阶段</span></div><p>每位玩家提交一张谱面或选择“任意”，所有人投票后从候选中抽取。</p></article>
+            <article class="ref-item" data-keywords="自动下载 同步进度"><div class="ref-top"><h3>谱面同步</h3><span class="path">选曲后自动进行</span></div><p>缺少选中谱面的玩家会自动下载，并向房间上报进度；全员完成后才开始倒计时。</p></article>
+            <article class="ref-item" data-keywords="竞技房 排行榜 成绩"><div class="ref-top"><h3>竞技房</h3><span class="path">创建房间 › 竞技</span></div><p>按正常规则游玩，符合条件的结算成绩可以上传排行榜。</p><div class="tags"><span class="tag safe">可上传成绩</span></div></article>
+            <article class="ref-item" data-keywords="娱乐房 技能 pure 判定增强 10秒 干扰动画 弹窗"><div class="ref-top"><h3>娱乐房与技能</h3><span class="path">创建房间 › 娱乐</span></div><p>目前有两个技能：判定增强会让自己在 10 秒内无论怎么打都判定为 Pure；干扰技能会在对手画面上弹出干扰动画。</p><div class="tags"><span class="tag score">不上传成绩</span></div></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="resource-pack">
+          <p class="section-kicker">Page 06</p><h2>资源包</h2><p class="section-intro">管理整套皮肤，或逐个修改四十多个资源槽位。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="导入资源包 皮肤文件"><div class="ref-top"><h3>导入资源包</h3><span class="path">资源包 › 导入</span></div><p>读取他人分享的资源包文件，并添加到本地资源包列表。</p></article>
+            <article class="ref-item" data-keywords="应用资源包 切换皮肤"><div class="ref-top"><h3>应用资源包</h3><span class="path">资源包列表 › 应用</span></div><p>一次切换整套贴图、声音、特效与颜色配置。</p></article>
+            <article class="ref-item" data-keywords="资源槽位 tap arctap hold arc 轨道 判定线 背景"><div class="ref-top"><h3>贴图槽位</h3><span class="path">资源包 › 资源槽位</span></div><p>单独替换 Tap、ArcTap、Hold、Arc、轨道、判定线、按压阴影、高度指示与背景等图片。</p></article>
+            <article class="ref-item" data-keywords="音效 打击音 接蛇音"><div class="ref-top"><h3>音效槽位</h3><span class="path">资源包 › 音效槽位</span></div><p>替换打击音与接蛇音，不改变音符判定。</p><div class="tags"><span class="tag safe">不影响成绩</span></div></article>
+            <article class="ref-item" data-keywords="序列帧 特效 行 列 时长 缩放"><div class="ref-top"><h3>序列帧特效</h3><span class="path">特效槽位 › 参数</span></div><p>为判定动画设置行数、列数、播放时长和缩放，使序列帧按正确方式播放。</p></article>
+            <article class="ref-item" data-keywords="颜色 arc 6k hold 特效色"><div class="ref-top"><h3>颜色槽位</h3><span class="path">资源包 › 添加颜色</span></div><p>调整 Arc 深浅色、错色、6K 轨道色、点击特效色与 Hold 特效双色等。</p></article>
+            <article class="ref-item" data-keywords="重置 默认 单槽 全部"><div class="ref-top"><h3>重置</h3><span class="path">资源槽位 / 资源包</span></div><p>“重置为默认”只恢复当前槽位，“重置全部”恢复完整默认配置。</p></article>
+            <article class="ref-item" data-keywords="导出资源包 分享 名称 作者 版本 描述"><div class="ref-top"><h3>导出资源包</h3><span class="path">资源包 › 导出当前配置</span></div><p>将当前配置打包分享，并写入名称、作者、版本与描述。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="effects">
+          <p class="section-kicker">Page 07</p><h2>演出编辑器</h2><p class="section-intro">面向谱面作者的时间轴后处理工具。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="新建效果 模板 红色闪烁 灰度 模糊 色差 暗角 波纹"><div class="ref-top"><h3>新建 / 模板</h3><span class="path">演出编辑器 › 左栏</span></div><p>从空效果或内置模板开始，并设置效果的起止时间。</p></article>
+            <article class="ref-item" data-keywords="参数 define 系统参数 time beat bpm"><div class="ref-top"><h3>参数</h3><span class="path">演出编辑器 › 参数</span></div><p>声明可动画参数；运行时会自动提供时间、分辨率、节拍与 BPM 等系统参数。</p></article>
+            <article class="ref-item" data-keywords="事件 关键帧 缓动 起止值 曲线"><div class="ref-top"><h3>参数事件</h3><span class="path">参数 › 事件</span></div><p>为参数指定起止时间、起止值与缓动曲线，右侧可预览变化曲线。</p></article>
+            <article class="ref-item" data-keywords="shader 代码 mainImage texture 编译"><div class="ref-top"><h3>Shader 代码</h3><span class="path">演出编辑器 › 顶栏</span></div><p>编辑 <code>mainImage</code> 后处理代码，并通过“编译并应用”即时检查错误和预览结果。</p></article>
+            <article class="ref-item" data-keywords="作用域 游戏画面 ui 全屏"><div class="ref-top"><h3>作用域</h3><span class="path">效果设置 › 作用域</span></div><p>决定效果只处理游戏画面、只处理 UI，或覆盖完整屏幕。</p></article>
+            <article class="ref-item" data-keywords="时间轴 播放 暂停 回到开头 毫秒"><div class="ref-top"><h3>时间轴预览</h3><span class="path">演出编辑器 › 底部</span></div><p>播放、暂停、回到开头或跳到指定时间；点击时间可复制当前毫秒数。</p></article>
+            <article class="ref-item" data-keywords="背景视频 视频延迟 导入"><div class="ref-top"><h3>背景视频</h3><span class="path">演出编辑器 › 背景视频</span></div><p>为谱面导入视频背景并单独调整视频延迟；关闭视频背景设置时会回退到背景图。</p></article>
+            <article class="ref-item" data-keywords="保存 未保存 写回谱面"><div class="ref-top"><h3>保存</h3><span class="path">演出编辑器 › 顶栏</span></div><p>把效果写回谱面。存在改动时显示“未保存”，退出前会再次提醒。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="settings">
+          <p class="section-kicker">Page 08</p><h2>设置</h2><p class="section-intro">所有会持续保存的设备与游玩选项。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="谱面偏移 音画同步 延迟 可视化校准 第三拍"><div class="ref-top"><h3>谱面偏移</h3><span class="path">设置 › 延迟</span></div><p>校准音乐与画面的同步关系。可打开打击音效，让音效与第三拍重音重合。</p></article>
+            <article class="ref-item" data-keywords="判定偏移 early late 设备延迟"><div class="ref-top"><h3>判定偏移</h3><span class="path">设置 › 延迟</span></div><p>补偿实际触控 / 输入延迟。Late 多时调大，Early 多时调小，建议结合多局设备校准。</p></article>
+            <article class="ref-item" data-keywords="暂停防误触 失焦自动暂停"><div class="ref-top"><h3>暂停与失焦</h3><span class="path">设置 › 游戏</span></div><p>调整暂停键防误触，并控制窗口失去焦点时是否自动暂停。</p></article>
+            <article class="ref-item" data-keywords="重叠音效 合并 声音"><div class="ref-top"><h3>重叠音效合并</h3><span class="path">设置 › 游戏 / 音频</span></div><p>减少大量同时触发的打击音叠加，改善密集段落的声音表现。</p></article>
+            <article class="ref-item" data-keywords="帧率 解锁 跟随设备 fps"><div class="ref-top"><h3>帧率</h3><span class="path">设置 › 显示与性能</span></div><p>选择跟随设备刷新率或解锁帧率。更高帧率通常会增加耗电和发热。</p></article>
+            <article class="ref-item" data-keywords="gpu 实例化 自动 高 中 低 性能"><div class="ref-top"><h3>GPU 实例化</h3><span class="path">设置 › 显示与性能</span></div><p>提供自动 / 高 / 中 / 低档位；选择未通过本机实测的档位时会显示提示。</p></article>
+            <article class="ref-item" data-keywords="shader 后处理 开关 性能"><div class="ref-top"><h3>Shader 后处理</h3><span class="path">设置 › 显示与性能</span></div><p>控制谱面演出后处理是否显示。关闭可降低部分设备的图形负担。</p></article>
+            <article class="ref-item" data-keywords="视频背景 开关 图片回退 性能"><div class="ref-top"><h3>视频背景</h3><span class="path">设置 › 显示与性能</span></div><p>控制背景视频播放；关闭时，提供了背景图的谱面会自动使用图片。</p></article>
+            <article class="ref-item" data-keywords="缓存 占用 清除 封面"><div class="ref-top"><h3>缓存管理</h3><span class="path">设置 › 缓存</span></div><p>查看在线封面等缓存的空间占用，并一键清理。不会删除已导入谱面。</p></article>
+            <article class="ref-item" data-keywords="语言 简中 繁中 英文 日文 韩文"><div class="ref-top"><h3>语言</h3><span class="path">设置 › 语言</span></div><p>切换简体中文、繁体中文、英语、日语或韩语界面。</p></article>
+          </div>
+        </section>
+
+        <section class="ref-section" id="account">
+          <p class="section-kicker">Page 09</p><h2>账号与社区</h2><p class="section-intro">在线身份、作品管理与社区资料。</p>
+          <div class="ref-list">
+            <article class="ref-item" data-keywords="注册 邮箱 初始密码"><div class="ref-top"><h3>邮箱注册</h3><span class="path">账号 › 注册</span></div><p>使用邮箱创建账号，初始密码会发送到邮箱。</p><div class="tags"><span class="tag">需联网</span></div></article>
+            <article class="ref-item" data-keywords="个人资料 昵称 头像 bilibili uid b站"><div class="ref-top"><h3>编辑个人资料</h3><span class="path">账号 › 个人资料</span></div><p>修改昵称、头像和 Bilibili UID；设置 UID 后，其他玩家可以从资料页前往对应空间。</p></article>
+            <article class="ref-item" data-keywords="修改密码 安全"><div class="ref-top"><h3>修改密码</h3><span class="path">账号 › 修改密码</span></div><p>更新当前账号密码。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+            <article class="ref-item" data-keywords="注销账号 保留谱面 点赞 成绩 已注销用户"><div class="ref-top"><h3>注销账号</h3><span class="path">账号 › 注销</span></div><p>注销时可逐项选择保留谱面、点赞与成绩；保留的数据会转到“已注销用户”名下。</p><div class="tags"><span class="tag warn">不可逆账号操作</span></div></article>
+            <article class="ref-item" data-keywords="我的谱面 管理 上传者"><div class="ref-top"><h3>作品管理</h3><span class="path">在线谱面 › 自己的作品</span></div><p>上传者可以更新或管理自己的在线谱面；管理员负责审核待审内容。</p><div class="tags"><span class="tag login">需登录</span></div></article>
+          </div>
+        </section>
+
+        <div class="empty" id="empty-state"><strong>没有找到匹配的功能</strong><br>试试更短的关键词，例如“偏移”“联机”或“背景”。</div>
+
+        <footer class="article-footer">
+          <span>Anoawa · 功能参考</span><a href="index.html">使用指南</a><a href="#overview">回到顶部 ↑</a>
+        </footer>
+      </article>
+    </main>
+  </div>
+
+  <script>
+    const menuButton=document.querySelector('.menu-button');const sidebar=document.querySelector('.sidebar');const sideLinks=[...document.querySelectorAll('.side-nav a[href^="#"]')];const sections=[...document.querySelectorAll('.ref-section')];
+    function closeMenu(){sidebar.classList.remove('open');menuButton.setAttribute('aria-expanded','false')}
+    menuButton.addEventListener('click',()=>{const open=sidebar.classList.toggle('open');menuButton.setAttribute('aria-expanded',String(open))});sideLinks.forEach(link=>link.addEventListener('click',closeMenu));document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMenu()});
+    const observer=new IntersectionObserver(entries=>{const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top)[0];if(!visible)return;sideLinks.forEach(link=>link.classList.toggle('active',link.getAttribute('href')===`#${visible.target.id}`))},{rootMargin:'-18% 0px -72% 0px'});document.querySelectorAll('main [id]').forEach(section=>observer.observe(section));
+    const search=document.querySelector('#feature-search');const items=[...document.querySelectorAll('.ref-item')];const status=document.querySelector('#search-status');const empty=document.querySelector('#empty-state');const total=items.length;
+    function filterFeatures(){const query=search.value.trim().toLocaleLowerCase('zh-CN');let matches=0;items.forEach(item=>{const haystack=`${item.textContent} ${item.dataset.keywords||''}`.toLocaleLowerCase('zh-CN');const show=!query||haystack.includes(query);item.hidden=!show;if(show)matches++});sections.forEach(section=>{section.hidden=Boolean(query)&&![...section.querySelectorAll('.ref-item')].some(item=>!item.hidden)});empty.classList.toggle('show',matches===0);status.textContent=query?`找到 ${matches} 项功能`:`共 ${total} 项功能`}
+    search.addEventListener('input',filterFeatures);document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();search.focus();search.select()}});filterFeatures();
+  </script>
+</body>
+</html>
