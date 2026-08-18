@@ -249,7 +249,11 @@ export async function submitLevel(scan, difficultyIndex, meta, report, signal) {
     charterName: meta.charterName,
     artistName: meta.artistName,
     baseBpm: meta.baseBpm,
-    bpm: meta.bpm || String(meta.baseBpm ?? ''),
+    // BaseBpm 是参与玩法的数值，Bpm 是纯展示字符串（可以是 "174-186" 这种区间），
+    // 客户端 LevelEditPanel 里就是两个独立输入框。留空要发 null 而不是空串——
+    // 后端是 `request.Bpm ?? request.BaseBpm.ToString("F0")`，空串不是 null，
+    // 会被原样存成空的展示 BPM。
+    bpm: meta.bpm?.trim() || null,
     displayDifficulty: meta.displayDifficulty,
     themeColor: meta.themeColor,
     introduction: meta.introduction || null,
