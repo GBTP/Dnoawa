@@ -3,801 +3,249 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f8fc">
-  <title>Anoawa 使用指南</title>
-  <meta name="description" content="Anoawa 社区音乐游戏使用指南：安装、导入谱面、游玩、延迟校准、联机、资源包与演出效果。">
-  <meta property="og:title" content="Anoawa 使用指南">
-  <meta property="og:description" content="从第一次安装到导入谱面、联机与创作，一页了解 Anoawa 的主要功能。">
-  <meta property="og:type" content="website">
-  <style>
-    :root {
-      --bg: #f7f8fc;
-      --surface: #ffffff;
-      --surface-2: #f1f3f9;
-      --text: #1e2230;
-      --muted: #626a7d;
-      --faint: #8991a4;
-      --line: #e2e5ee;
-      --line-strong: #d2d7e3;
-      --accent: #6957e8;
-      --accent-strong: #5540d8;
-      --accent-soft: #efedff;
-      --mint: #0c8c72;
-      --mint-soft: #e7f7f2;
-      --warning: #9b6811;
-      --warning-soft: #fff7e5;
-      --sidebar: 252px;
-      --topbar: 64px;
-      --radius: 14px;
-      --shadow: 0 14px 35px rgba(31, 35, 48, .07);
-      --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-    }
-
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar) + 24px); }
-    body {
-      margin: 0;
-      color: var(--text);
-      background: var(--bg);
-      font-family: var(--font);
-      font-size: 16px;
-      line-height: 1.72;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: inherit; }
-    button { font: inherit; }
-    img { display: block; max-width: 100%; }
-    :focus-visible { outline: 3px solid rgba(105, 87, 232, .35); outline-offset: 3px; }
-
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      height: var(--topbar);
-      border-bottom: 1px solid rgba(210, 215, 227, .82);
-      background: rgba(247, 248, 252, .88);
-      backdrop-filter: blur(18px);
-    }
-    .topbar-inner {
-      width: min(1440px, 100%);
-      height: 100%;
-      margin: 0 auto;
-      padding: 0 28px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 11px;
-      color: var(--text);
-      font-weight: 750;
-      letter-spacing: -.02em;
-      text-decoration: none;
-    }
-    .brand-mark {
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
-      display: grid;
-      place-items: center;
-      color: #fff;
-      background: linear-gradient(145deg, #7c6cf0, #4e3bcc);
-      box-shadow: 0 7px 16px rgba(105, 87, 232, .24);
-      font-size: 15px;
-    }
-    .brand small {
-      margin-left: 2px;
-      color: var(--faint);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: .04em;
-    }
-    .top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-    .top-link, .menu-button {
-      min-height: 38px;
-      padding: 8px 13px;
-      border: 1px solid transparent;
-      border-radius: 9px;
-      color: var(--muted);
-      background: transparent;
-      font-size: 14px;
-      font-weight: 600;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    .top-link:hover, .menu-button:hover { color: var(--text); background: var(--surface); border-color: var(--line); }
-    .top-link.primary { color: #fff; background: var(--accent); }
-    .top-link.primary:hover { color: #fff; background: var(--accent-strong); border-color: transparent; }
-    .menu-button { display: none; }
-
-    .docs-layout {
-      width: min(1440px, 100%);
-      margin: 0 auto;
-      padding: 0 28px;
-      display: grid;
-      grid-template-columns: var(--sidebar) minmax(0, 1fr);
-      gap: clamp(38px, 5vw, 78px);
-    }
-    .sidebar {
-      position: sticky;
-      top: var(--topbar);
-      height: calc(100vh - var(--topbar));
-      padding: 30px 18px 40px 0;
-      overflow-y: auto;
-      border-right: 1px solid var(--line);
-    }
-    .nav-group + .nav-group { margin-top: 26px; }
-    .nav-label {
-      margin: 0 0 7px 12px;
-      color: var(--faint);
-      font-size: 11px;
-      font-weight: 750;
-      letter-spacing: .13em;
-      text-transform: uppercase;
-    }
-    .side-nav { display: grid; gap: 2px; }
-    .side-nav a {
-      padding: 7px 11px;
-      border-radius: 8px;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.4;
-      text-decoration: none;
-      transition: background .16s, color .16s;
-    }
-    .side-nav a:hover { color: var(--text); background: var(--surface-2); }
-    .side-nav a.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 650; }
-
-    main { min-width: 0; padding: 48px 0 100px; }
-    .article { width: min(880px, 100%); }
-    .breadcrumb { color: var(--faint); font-size: 13px; font-weight: 600; }
-    .hero { padding: 8px 0 54px; border-bottom: 1px solid var(--line); }
-    .hero h1 {
-      margin: 16px 0 0;
-      max-width: 760px;
-      font-size: clamp(38px, 6vw, 62px);
-      line-height: 1.12;
-      letter-spacing: -.055em;
-    }
-    .hero .lead {
-      max-width: 680px;
-      margin: 20px 0 0;
-      color: var(--muted);
-      font-size: clamp(17px, 2vw, 20px);
-      line-height: 1.7;
-    }
-    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-    .badge {
-      padding: 5px 9px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--muted);
-      background: var(--surface);
-      font-size: 12px;
-      font-weight: 650;
-    }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-height: 43px;
-      padding: 9px 16px;
-      border: 1px solid var(--line-strong);
-      border-radius: 10px;
-      color: var(--text);
-      background: var(--surface);
-      box-shadow: 0 2px 5px rgba(31, 35, 48, .04);
-      font-size: 14px;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .button:hover { border-color: #b8bfcd; background: #fbfbfd; }
-    .button.primary { color: #fff; border-color: var(--accent); background: var(--accent); }
-    .button.primary:hover { background: var(--accent-strong); }
-    .button .arrow { font-size: 17px; line-height: 1; }
-
-    .doc-section { padding: 58px 0 4px; }
-    .doc-section + .doc-section { margin-top: 10px; }
-    .section-kicker {
-      margin: 0 0 8px;
-      color: var(--accent);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .13em;
-      text-transform: uppercase;
-    }
-    h2 {
-      margin: 0;
-      font-size: clamp(28px, 4vw, 36px);
-      line-height: 1.25;
-      letter-spacing: -.035em;
-    }
-    h3 { margin: 42px 0 12px; font-size: 22px; line-height: 1.35; letter-spacing: -.02em; }
-    h4 { margin: 0; font-size: 16px; }
-    p { margin: 13px 0 0; }
-    .section-intro { max-width: 720px; color: var(--muted); font-size: 17px; }
-    strong { font-weight: 720; }
-    code {
-      padding: .12em .4em;
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      color: #4d3bba;
-      background: var(--surface-2);
-      font-family: var(--mono);
-      font-size: .9em;
-    }
-
-    .quick-grid, .feature-grid, .platform-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 28px;
-    }
-    .quick-card, .feature-card, .platform-card {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: 0 5px 16px rgba(31, 35, 48, .035);
-    }
-    .quick-card { padding: 21px; }
-    .step-number {
-      width: 29px;
-      height: 29px;
-      display: grid;
-      place-items: center;
-      border-radius: 8px;
-      color: var(--accent-strong);
-      background: var(--accent-soft);
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .quick-card h3 { margin: 17px 0 0; font-size: 17px; }
-    .quick-card p { color: var(--muted); font-size: 14px; line-height: 1.65; }
-    .quick-card a { color: var(--accent-strong); font-weight: 700; text-decoration: none; }
-
-    .callout {
-      margin-top: 24px;
-      padding: 17px 19px;
-      border: 1px solid #d8d3ff;
-      border-left: 4px solid var(--accent);
-      border-radius: 10px;
-      color: #4f496c;
-      background: var(--accent-soft);
-      font-size: 14px;
-    }
-    .callout.warning { border-color: #f0dfb9; border-left-color: #d69b2a; color: #70501a; background: var(--warning-soft); }
-    .callout.success { border-color: #c7eadf; border-left-color: var(--mint); color: #236a5b; background: var(--mint-soft); }
-    .callout strong { color: var(--text); }
-
-    .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .feature-card {
-      position: relative;
-      padding: 23px;
-      color: var(--text);
-      text-decoration: none;
-      transition: transform .18s, border-color .18s, box-shadow .18s;
-    }
-    .feature-card:hover { transform: translateY(-2px); border-color: #cbc5ff; box-shadow: var(--shadow); }
-    .feature-icon {
-      width: 38px;
-      height: 38px;
-      display: grid;
-      place-items: center;
-      border-radius: 10px;
-      color: var(--accent-strong);
-      background: var(--accent-soft);
-      font-size: 18px;
-      font-weight: 800;
-    }
-    .feature-card h3 { margin: 16px 0 0; font-size: 18px; }
-    .feature-card p { margin-top: 7px; color: var(--muted); font-size: 14px; }
-    .feature-card .go { position: absolute; top: 24px; right: 22px; color: var(--faint); }
-
-    .reference-banner {
-      margin-top: 24px;
-      padding: clamp(24px, 4vw, 34px);
-      display: flex;
-      align-items: center;
-      gap: 26px;
-      border-radius: var(--radius);
-      color: #fff;
-      background: linear-gradient(135deg, #28223f 0%, #4f3bc7 60%, #705ee8 100%);
-      box-shadow: 0 16px 34px rgba(74, 55, 188, .2);
-    }
-    .reference-banner-copy { flex: 1; }
-    .reference-banner h3 { margin: 0; color: #fff; font-size: clamp(21px, 3vw, 27px); }
-    .reference-banner p { max-width: 580px; margin-top: 8px; color: rgba(255,255,255,.76); font-size: 14px; }
-    .reference-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 15px; }
-    .reference-examples span { padding: 4px 8px; border: 1px solid rgba(255,255,255,.17); border-radius: 6px; color: rgba(255,255,255,.82); background: rgba(255,255,255,.08); font-size: 11px; font-weight: 700; }
-    .reference-cta { flex: 0 0 auto; padding: 11px 16px; border-radius: 9px; color: var(--accent-strong); background: #fff; box-shadow: 0 7px 18px rgba(19, 12, 59, .2); font-size: 14px; font-weight: 800; text-decoration: none; white-space: nowrap; }
-    .reference-cta:hover { background: #f4f2ff; }
-
-    .guide-block {
-      margin-top: 24px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      overflow: hidden;
-    }
-    .guide-head { padding: 18px 21px; border-bottom: 1px solid var(--line); background: #fbfbfd; }
-    .guide-head .path { margin-top: 4px; color: var(--accent); font-size: 12px; font-weight: 750; }
-    .steps { margin: 0; padding: 7px 21px 19px; list-style: none; counter-reset: step; }
-    .steps li {
-      position: relative;
-      min-height: 38px;
-      padding: 17px 0 0 45px;
-      counter-increment: step;
-    }
-    .steps li::before {
-      content: counter(step);
-      position: absolute;
-      left: 0;
-      top: 16px;
-      width: 27px;
-      height: 27px;
-      display: grid;
-      place-items: center;
-      border: 1px solid #d8d3ff;
-      border-radius: 50%;
-      color: var(--accent-strong);
-      background: var(--accent-soft);
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .steps li + li { border-top: 1px solid var(--line); }
-    .steps span { color: var(--muted); }
-
-    .check-list { margin: 18px 0 0; padding: 0; list-style: none; }
-    .check-list li { position: relative; padding-left: 29px; margin-top: 10px; color: var(--muted); }
-    .check-list li::before {
-      content: "✓";
-      position: absolute;
-      left: 0;
-      top: .12em;
-      width: 19px;
-      height: 19px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      color: var(--mint);
-      background: var(--mint-soft);
-      font-size: 11px;
-      font-weight: 900;
-    }
-    .check-list strong { color: var(--text); }
-
-    .table-wrap { margin-top: 22px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-    table { width: 100%; border-collapse: collapse; min-width: 620px; font-size: 14px; }
-    th, td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { color: var(--muted); background: #fbfbfd; font-size: 12px; letter-spacing: .04em; }
-    tr:last-child td { border-bottom: 0; }
-    td:first-child { color: var(--text); font-weight: 700; }
-    td { color: var(--muted); }
-
-    .doc-shot {
-      margin: 24px 0 0;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: var(--surface);
-    }
-    .doc-shot-link { display: block; background: #111322; }
-    .doc-shot img { width: 100%; height: auto; transition: opacity .18s; }
-    .doc-shot-link:hover img { opacity: .9; }
-    .doc-shot figcaption { padding: 12px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-
-    .platform-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .platform-card { padding: 22px; display: flex; flex-direction: column; }
-    .platform-card .os { color: var(--accent); font-size: 12px; font-weight: 850; letter-spacing: .12em; }
-    .platform-card h3 { margin: 8px 0 0; font-size: 20px; }
-    .platform-card p { color: var(--muted); font-size: 14px; }
-    .platform-card .button { margin-top: auto; transform: translateY(8px); }
-    .community-box {
-      margin-top: 16px;
-      padding: 21px 23px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px 32px;
-      align-items: center;
-      border: 1px solid #d8d3ff;
-      border-radius: var(--radius);
-      background: var(--accent-soft);
-    }
-    .community-item small { display: block; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
-    .community-item b { font-size: 19px; font-variant-numeric: tabular-nums; }
-    .community-box p { flex: 1 1 250px; margin: 0; color: var(--muted); font-size: 13px; }
-
-    details { border-bottom: 1px solid var(--line); }
-    details:first-of-type { margin-top: 20px; border-top: 1px solid var(--line); }
-    summary { padding: 17px 2px; cursor: pointer; font-weight: 700; list-style: none; }
-    summary::-webkit-details-marker { display: none; }
-    summary::after { content: "+"; float: right; color: var(--faint); font-size: 20px; font-weight: 400; }
-    details[open] summary::after { content: "−"; }
-    details p { margin: -4px 0 18px; padding-right: 34px; color: var(--muted); font-size: 14px; }
-
-    .article-footer {
-      margin-top: 72px;
-      padding: 28px 0 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 24px;
-      border-top: 1px solid var(--line);
-      color: var(--faint);
-      font-size: 12px;
-    }
-    .article-footer a { color: var(--muted); font-weight: 650; text-decoration: none; }
-    .article-footer a:hover { color: var(--accent); }
-
-    @media (max-width: 960px) {
-      .topbar-inner, .docs-layout { padding-left: 20px; padding-right: 20px; }
-      .docs-layout { grid-template-columns: 1fr; }
-      .sidebar {
-        position: fixed;
-        inset: var(--topbar) auto 0 0;
-        z-index: 45;
-        width: min(320px, 86vw);
-        height: calc(100vh - var(--topbar));
-        padding: 24px 22px 36px;
-        border-right: 1px solid var(--line-strong);
-        background: var(--surface);
-        box-shadow: 16px 0 40px rgba(31, 35, 48, .12);
-        transform: translateX(-105%);
-        transition: transform .22s ease;
-      }
-      .sidebar.open { transform: translateX(0); }
-      .menu-button { display: inline-flex; align-items: center; }
-      main { padding-top: 38px; }
-      .article { margin: 0 auto; }
-    }
-    @media (max-width: 720px) {
-      :root { --topbar: 58px; }
-      .topbar-inner, .docs-layout { padding-left: 16px; padding-right: 16px; }
-      .brand small { display: none; }
-      .top-actions .top-link:not(.primary) { display: none; }
-      .menu-button, .top-link.primary { white-space: nowrap; }
-      .hero { padding-top: 2px; }
-      .quick-grid, .feature-grid, .platform-grid { grid-template-columns: 1fr; }
-      .quick-grid { gap: 10px; }
-      .quick-card { display: grid; grid-template-columns: 34px 1fr; column-gap: 10px; }
-      .quick-card h3 { margin: 3px 0 0; }
-      .quick-card p { grid-column: 2; }
-      .reference-banner { align-items: flex-start; flex-direction: column; }
-      .doc-section { padding-top: 48px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; }
-    }
-  </style>
+  <meta name="theme-color" content="#08080f">
+  <title>谱面库 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <button class="menu-button" type="button" aria-label="打开文档目录" aria-controls="sidebar" aria-expanded="false">☰ 目录</button>
-      <a class="brand" href="#overview"><span class="brand-mark">A</span><span>Anoawa</span><small>使用指南</small></a>
-      <nav class="top-actions" aria-label="快捷链接">
-        <a class="top-link" href="reference.html">功能参考</a>
-        <a class="top-link primary" href="#download">获取游戏</a>
+      <a class="brand" href="index.html">
+        <span class="brand-mark">A</span>
+        Anoawa <small>社区</small>
+      </a>
+      <nav class="top-actions">
+        <a class="top-link current" href="index.html">谱面库</a>
+        <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="docs/index.html">使用指南</a>
+        <button class="top-link" type="button" id="logout">退出</button>
       </nav>
     </div>
   </header>
 
-  <div class="docs-layout">
-    <aside class="sidebar" id="sidebar" aria-label="文档目录">
-      <div class="nav-group">
-        <p class="nav-label">开始</p>
-        <nav class="side-nav">
-          <a href="#overview" class="active">概览</a>
-          <a href="#quick-start">快速开始</a>
-          <a href="#download">下载与安装</a>
-          <a href="#feature-map">主要功能</a>
-        </nav>
-      </div>
-      <div class="nav-group">
-        <p class="nav-label">使用指南</p>
-        <nav class="side-nav">
-          <a href="#chart-library">谱面库与导入</a>
-          <a href="#play">游玩与练习</a>
-          <a href="#calibration">延迟与判定校准</a>
-          <a href="#multiplayer">联机房间</a>
-          <a href="#resource-pack">资源包与皮肤</a>
-          <a href="#effects">演出效果编辑器</a>
-        </nav>
-      </div>
-      <div class="nav-group">
-        <p class="nav-label">补充</p>
-        <nav class="side-nav">
-          <a href="#reference">功能参考</a>
-          <a href="#faq">常见问题</a>
-        </nav>
-      </div>
-    </aside>
+  <main class="page">
+    <div class="page-head">
+      <h1>社区<span class="gradient-text">谱面库</span></h1>
+      <p id="greeting"></p>
+    </div>
 
-    <main>
-      <article class="article">
-        <header class="hero" id="overview">
-          <div class="breadcrumb">Anoawa 文档&nbsp; / &nbsp;使用指南</div>
-          <h1>从安装到创作，<br>快速上手 Anoawa</h1>
-          <p class="lead">Anoawa 是一款基于 Arcaea 玩法的社区音乐游戏。你可以导入 <code>.aff</code> 谱面、浏览社区曲库、联机游玩，也可以制作皮肤与谱面演出。</p>
-          <div class="badges" aria-label="支持信息">
-            <span class="badge">社区谱面</span>
-            <span class="badge">5 档难度</span>
-            <span class="badge">5 种语言</span>
-            <span class="badge">跨平台</span>
-          </div>
-          <div class="hero-actions">
-            <a class="button primary" href="#quick-start">开始阅读 <span class="arrow">→</span></a>
-            <a class="button" href="reference.html">查找具体功能</a>
-          </div>
-        </header>
+    <form class="toolbar" id="toolbar" role="search">
+      <input class="input search" type="search" id="search" name="search"
+             placeholder="搜索曲名、曲师、谱师、画师或标签" autocomplete="off">
+      <select class="select" id="sort" aria-label="排序方式"></select>
+      <select class="select" id="order" aria-label="排序方向">
+        <option value="desc">降序</option>
+        <option value="asc">升序</option>
+      </select>
+      <button class="button" type="submit">搜索</button>
+    </form>
 
-        <section class="doc-section" id="quick-start">
-          <p class="section-kicker">Quick start</p>
-          <h2>第一次使用</h2>
-          <p class="section-intro">完成安装后，按下面三步就能开始第一局。需要社区下载、排行榜或联机时再登录账号。</p>
-          <div class="quick-grid">
-            <div class="quick-card">
-              <span class="step-number">01</span>
-              <h3>安装游戏</h3>
-              <p>Android 与 Windows 从 QQ 群文件获取；iOS 通过 TestFlight 安装。</p>
-              <p><a href="#download">查看安装方式 →</a></p>
-            </div>
-            <div class="quick-card">
-              <span class="step-number">02</span>
-              <h3>准备谱面</h3>
-              <p>导入本地 Arcade 谱面包，或登录后从在线曲库下载社区谱面。</p>
-              <p><a href="#chart-library">查看导入说明 →</a></p>
-            </div>
-            <div class="quick-card">
-              <span class="step-number">03</span>
-              <h3>校准并游玩</h3>
-              <p>先让音画同步，打几局后再用结算数据校准设备判定偏移。</p>
-              <p><a href="#calibration">查看校准指南 →</a></p>
-            </div>
-          </div>
-          <div class="callout"><strong>新手建议：</strong>第一次不要急着追求判定数值“归零”。先完成谱面偏移校准，再正常打几首熟悉的谱面，让游戏积累足够的设备数据。</div>
-        </section>
+    <p class="result-meta" id="meta"></p>
+    <div class="callout error" id="error" hidden></div>
+    <div class="level-grid" id="grid"></div>
 
-        <section class="doc-section" id="download">
-          <p class="section-kicker">Download</p>
-          <h2>下载与安装</h2>
-          <p class="section-intro">Anoawa 暂未在应用商店公开上架。Android 与 Windows 版本通过社区群文件发布，iOS 使用 TestFlight。</p>
-          <div class="platform-grid">
-            <div class="platform-card"><span class="os">ANDROID</span><h3>APK</h3><p>从群文件下载后直接安装。Android 11 及以上首次导入谱面时，需要授予文件访问权限。</p><a class="button" href="#community">查看社区群</a></div>
-            <div class="platform-card"><span class="os">iOS</span><h3>TestFlight</h3><p>先从 App Store 安装 TestFlight，再加入 Anoawa 公测。名额和更新以群内公告为准。</p><a class="button primary" href="https://testflight.apple.com/join/XMcFWlQA" target="_blank" rel="noreferrer">加入 TestFlight ↗</a></div>
-            <div class="platform-card"><span class="os">WINDOWS</span><h3>桌面版</h3><p>从群文件下载压缩包，解压后运行。桌面版更新节奏可能与移动端不同。</p><a class="button" href="#community">查看社区群</a></div>
-          </div>
-          <div class="community-box" id="community">
-            <div class="community-item"><small>QQ 一群</small><b>694748554</b></div>
-            <div class="community-item"><small>QQ 二群</small><b>499564108</b></div>
-            <div class="community-item"><small>QQ 频道</small><b>ngqny4035b</b></div>
-            <p>安装包、更新公告与谱面交流都在群内。一群无法加入时可以选择二群。</p>
-          </div>
-        </section>
+    <div class="pager" id="pager" hidden>
+      <button class="button small" type="button" id="prev">← 上一页</button>
+      <span class="page-info num" id="page-info"></span>
+      <button class="button small" type="button" id="next">下一页 →</button>
+    </div>
+  </main>
 
-        <section class="doc-section" id="feature-map">
-          <p class="section-kicker">Feature map</p>
-          <h2>主要功能</h2>
-          <p class="section-intro">按你想完成的事情进入对应章节。每节都会标出游戏内入口和操作步骤。</p>
-          <div class="feature-grid">
-            <a class="feature-card" href="#chart-library"><span class="feature-icon">谱</span><span class="go">→</span><h3>谱面库</h3><p>导入、搜索、下载、编辑与上传谱面。</p></a>
-            <a class="feature-card" href="#play"><span class="feature-icon">玩</span><span class="go">→</span><h3>游玩与练习</h3><p>流速、Mod、练习区间与结算成绩。</p></a>
-            <a class="feature-card" href="#calibration"><span class="feature-icon">准</span><span class="go">→</span><h3>延迟校准</h3><p>区分谱面偏移与判定偏移。</p></a>
-            <a class="feature-card" href="#multiplayer"><span class="feature-icon">联</span><span class="go">→</span><h3>多人联机</h3><p>房间、投票选曲、竞技与娱乐模式。</p></a>
-            <a class="feature-card" href="#resource-pack"><span class="feature-icon">装</span><span class="go">→</span><h3>资源包</h3><p>替换贴图、音效、特效与颜色。</p></a>
-            <a class="feature-card" href="#effects"><span class="feature-icon">演</span><span class="go">→</span><h3>演出编辑器</h3><p>Shader、关键帧、时间轴与背景视频。</p></a>
-          </div>
-        </section>
+  <script type="module">
+    import { requireLogin, describeError, logout, getProfile } from './js/api.js';
+    import { listLevels, SORT_OPTIONS, STATUS_LABELS, PAGE_SIZE } from './js/levels.js';
+    import {
+      el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox,
+    } from './js/ui.js';
 
-        <section class="doc-section" id="chart-library">
-          <p class="section-kicker">Guide 01</p>
-          <h2>谱面库与导入</h2>
-          <p class="section-intro">谱面库包含“本地、在线、热榜、随机”四个标签。在线曲库支持搜索，以及按上传时间、游玩数、点赞数、时长或 BPM 排序。</p>
-          <div class="guide-block">
-            <div class="guide-head"><h4>导入本地谱面</h4><div class="path">主菜单 › 谱面库 › 导入</div></div>
-            <ol class="steps">
-              <li>选择谱面压缩包（ZIP / 7Z / RAR）或谱面文件夹。<span>选择包含多个关卡子目录的文件夹时可以批量导入。</span></li>
-              <li>确认扫描出的关卡列表，点击“导入试试！”。<span>音频会转码为 OGG，封面会自动压缩。</span></li>
-              <li>导入完成后，在“编辑谱面信息”补充曲师、谱师、画师等缺失字段。</li>
-            </ol>
-          </div>
-          <figure class="doc-shot" data-screenshot="chart-library">
-            <a class="doc-shot-link" href="assets/screenshots/chart-library.jpg" target="_blank" rel="noreferrer"><img src="assets/screenshots/chart-library.jpg" alt="Anoawa 谱面库热榜界面，顶部包含本地、在线、热榜和随机标签" width="1800" height="809" loading="lazy"></a>
-            <figcaption>谱面库顶部可切换本地、在线、热榜和随机；图中打开的是日热度榜。点击图片可查看原图。</figcaption>
-          </figure>
-          <h3>谱面包需要包含什么</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>内容</th><th>命名 / 格式</th><th>说明</th></tr></thead>
-              <tbody>
-                <tr><td>谱面</td><td><code>0.aff</code> ~ <code>4.aff</code></td><td>依次对应 Past、Present、Future、Beyond、Eternal</td></tr>
-                <tr><td>音频</td><td><code>base.*</code></td><td>MP3 / OGG / FLAC / WAV / AAC</td></tr>
-                <tr><td>封面</td><td><code>base.*</code></td><td>JPG / PNG / WebP 等常见图片格式</td></tr>
-                <tr><td>背景</td><td><code>bg.*</code> 或 <code>background.*</code></td><td>可以同时提供背景图和背景视频</td></tr>
-                <tr><td>歌曲信息</td><td><code>songlist</code> / <code>slst</code></td><td>读取曲名、曲师、BPM 等元数据</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="callout warning"><strong>社区谱面权限：</strong>从社区下载的谱面默认不能编辑或导出，只有上传者勾选“允许导出”后才可以。这能避免作品被随意改名或二次分发。</div>
-        </section>
+    if (!requireLogin()) throw new Error('redirecting');
 
-        <section class="doc-section" id="play">
-          <p class="section-kicker">Guide 02</p>
-          <h2>游玩与练习</h2>
-          <p class="section-intro">在谱面详情中选择难度、调整流速并开始游戏。需要针对某一段练习时，可以打开 Mod 面板设置练习区间。</p>
-          <div class="guide-block">
-            <div class="guide-head"><h4>开始一局</h4><div class="path">谱面库 › 谱面详情 › 开始游戏</div></div>
-            <ol class="steps">
-              <li>选择一张谱面和要游玩的难度，按习惯调整流速。</li>
-              <li>需要练习时进入“Mod 设置”，打开练习模式并选择起止区间。</li>
-              <li>点击“开始游戏”。结算页可以查看成绩、点赞、重试与打开谱师资料。</li>
-            </ol>
-          </div>
-          <figure class="doc-shot" data-screenshot="mod-settings">
-            <a class="doc-shot-link" href="assets/screenshots/mod-settings.jpg" target="_blank" rel="noreferrer"><img src="assets/screenshots/mod-settings.jpg" alt="Anoawa Mod 设置面板，包含自动游玩、蛇不锁手、变速、FOV 和练习模式" width="1800" height="809" loading="lazy"></a>
-            <figcaption>Mod 设置包含自动游玩、蛇不锁手、接蛇轨道不倾斜、变速、FOV 系数和练习模式；开启任意 Mod 后本局成绩不会上传。</figcaption>
-          </figure>
-          <figure class="doc-shot" data-screenshot="game-settings">
-            <a class="doc-shot-link" href="assets/screenshots/game-settings.jpg" target="_blank" rel="noreferrer"><img src="assets/screenshots/game-settings.jpg" alt="Anoawa 游戏设置面板，包含下落速度、打击音量、谱面偏移和判定偏移" width="1800" height="809" loading="lazy"></a>
-            <figcaption>游戏设置集中调整下落速度、打击音量、谱面偏移、判定偏移和天空输入范围。</figcaption>
-          </figure>
-          <ul class="check-list">
-            <li><strong>任何 Mod 都会关闭排行榜上传。</strong>结算页会明确标记本局使用了 Mod。</li>
-            <li>Mod 包含自动游玩、蛇不锁手、接蛇轨道不倾斜、变速、FOV 系数和练习模式。</li>
-            <li>Early / Late 提示、高对比度模式、失焦暂停与防误触都可在设置中调整。</li>
-            <li>谱面详情中的“复制手元简介”会整理曲名、曲师、难度和谱师，方便发布视频。</li>
-          </ul>
-        </section>
+    document.getElementById('logout').addEventListener('click', logout);
 
-        <section class="doc-section" id="calibration">
-          <p class="section-kicker">Guide 03</p>
-          <h2>延迟与判定校准</h2>
-          <p class="section-intro">Anoawa 把延迟拆成两个设置。记住同一个方向即可：<strong>Late 多就调大，Early 多就调小。</strong></p>
-          <div class="feature-grid">
-            <div class="feature-card"><span class="feature-icon">音</span><h3>谱面偏移</h3><p>解决“音乐和画面对不上”。在设置页打开打击音效，让音效与第三拍重音重合。</p></div>
-            <div class="feature-card"><span class="feature-icon">点</span><h3>判定偏移</h3><p>解决“感觉点对了却不是 Pure”。需要通过多局打歌数据估算设备延迟。</p></div>
-          </div>
-          <div class="guide-block">
-            <div class="guide-head"><h4>推荐校准顺序</h4><div class="path">设置 › 延迟 / 结算 › 判定分析</div></div>
-            <ol class="steps">
-              <li>先用可视化校准调整<strong>谱面偏移</strong>，直到听感与画面同步。</li>
-              <li>正常打几首熟悉的歌。<span>开 Mod 的对局不会进入设备校准统计。</span></li>
-              <li>积累足够局数后打开“判定分析”，查看右栏给出的<strong>建议判定偏移</strong>。</li>
-              <li>确认趋势稳定后点击“应用”，再继续游玩验证。</li>
-            </ol>
-          </div>
-          <figure class="doc-shot" data-screenshot="judgement-analysis">
-            <a class="doc-shot-link" href="assets/screenshots/judgement-analysis.jpg" target="_blank" rel="noreferrer"><img src="assets/screenshots/judgement-analysis.jpg" alt="Anoawa 判定分析面板，左侧是本局分析，右侧是设备校准" width="1280" height="576" loading="lazy"></a>
-            <figcaption>左侧本局分析用于解释单局表现；右侧设备校准结合多局数据估算长期偏移。</figcaption>
-          </figure>
-          <div class="callout success"><strong>怎么看分析：</strong>“本局分析”回答这一张谱往哪调分数可能更高；“设备校准”结合多局中位偏移，估算这台设备的真实延迟。长期校准优先看后者。</div>
-        </section>
+    const nickname = getProfile().nickname;
+    document.getElementById('greeting').textContent =
+      nickname ? `欢迎回来，${nickname}` : '浏览社区上传的谱面';
 
-        <section class="doc-section" id="multiplayer">
-          <p class="section-kicker">Guide 04</p>
-          <h2>联机房间</h2>
-          <p class="section-intro">联机使用社区部署的专用节点。公开房可以从大厅加入，私密房通过房间号邀请朋友。</p>
-          <div class="guide-block">
-            <div class="guide-head"><h4>创建或加入房间</h4><div class="path">主菜单 › 联机</div></div>
-            <ol class="steps">
-              <li>先登录账号。刷新公开房列表，或输入 ID 加入私密房。</li>
-              <li>创建房间时设置名称、人数、公开性与模式；可先测速选择延迟最低的节点。</li>
-              <li>进入大厅后准备，选曲阶段每人投一张谱面，也可以投“任意”。</li>
-              <li>系统抽取谱面并同步下载进度；全员就绪后开始倒计时。</li>
-            </ol>
-          </div>
-          <figure class="doc-shot" data-screenshot="multiplayer-create">
-            <a class="doc-shot-link" href="assets/screenshots/multiplayer-create.jpg" target="_blank" rel="noreferrer"><img src="assets/screenshots/multiplayer-create.jpg" alt="Anoawa 创建联机房间界面，包含模式、人数、可见性和节点测速" width="1800" height="809" loading="lazy"></a>
-            <figcaption>创建房间时可以设置模式、最大人数与可见性，并通过测速选择合适的联机节点。</figcaption>
-          </figure>
-          <ul class="check-list">
-            <li><strong>竞技房：</strong>正常游玩，符合条件的成绩会上传排行榜。</li>
-            <li><strong>娱乐房：</strong>目前实现了两个技能：一个让自己在 10 秒内无论怎么打都判定为 Pure；另一个会在对手画面上弹出干扰动画。娱乐房成绩不上传排行榜。</li>
-            <li>联机谱面必须有关联的在线版本；只存在于本地且未上传的谱面不能开局。</li>
-          </ul>
-        </section>
+    // 与客户端对齐：ChartLibraryPage.cs:504 显式传 20，SDK 各方法默认值也是 20，
+    // 后端 LevelQueryParams.PageSize 的默认同样是 20。常量定义在 levels.js，
+    // 这里只引用，避免两处各写一个值以后漂开。
 
-        <section class="doc-section" id="resource-pack">
-          <p class="section-kicker">Guide 05</p>
-          <h2>资源包与皮肤</h2>
-          <p class="section-intro">资源包可以整包切换，也可以只替换单个槽位。可定制内容包括 Note、轨道、判定线、Arc 配色、判定特效与打击音效等。</p>
-          <div class="guide-block">
-            <div class="guide-head"><h4>应用与制作资源包</h4><div class="path">主菜单 › 资源包</div></div>
-            <ol class="steps">
-              <li>点击“导入”选择资源包文件，在列表中点击“应用”。</li>
-              <li>只想修改部分内容时，在资源槽位中单独导入图片、音效或添加颜色。</li>
-              <li>序列帧特效可以设置列数、行数、播放时长与缩放。</li>
-              <li>完成后选择“把当前配置导出为资源包”，填写名称、作者、版本与说明。</li>
-            </ol>
-          </div>
-          <div class="callout"><strong>恢复默认：</strong>单个槽位可以独立重置；如果整体搭配已经混乱，也可以使用“重置全部”。</div>
-        </section>
+    const form = document.getElementById('search').form;
+    const searchInput = document.getElementById('search');
+    const sortSelect = document.getElementById('sort');
+    const orderSelect = document.getElementById('order');
+    const grid = document.getElementById('grid');
+    const meta = document.getElementById('meta');
+    const errorBox = document.getElementById('error');
+    const pager = document.getElementById('pager');
 
-        <section class="doc-section" id="effects">
-          <p class="section-kicker">Guide 06</p>
-          <h2>演出效果编辑器</h2>
-          <p class="section-intro">你可以为自己的谱面添加全屏后处理效果，沿时间轴安排每段效果，并为参数添加关键帧。保存后会随谱面包一起分发。</p>
-          <div class="guide-block">
-            <div class="guide-head"><h4>制作一个演出效果</h4><div class="path">谱面详情 › 演出效果</div></div>
-            <ol class="steps">
-              <li>新建效果或从红色闪烁、灰度、径向模糊、色差、暗角、波纹等模板开始。</li>
-              <li>设置效果的起止时间，在参数面板添加参数与动画事件。</li>
-              <li>需要自定义画面时打开 Shader 代码，修改后点击“编译并应用”。</li>
-              <li>使用底部时间轴预览，确认后点击“保存”写回谱面。</li>
-            </ol>
-          </div>
-          <div class="callout warning"><strong>Shader 约定：</strong>入口为 <code>void mainImage(out vec4 fragColor, in vec2 uv)</code>。系统会提供时间、分辨率、节拍与 BPM 等运行时参数。</div>
-        </section>
-
-        <section class="doc-section" id="reference">
-          <p class="section-kicker">Reference manual</p>
-          <h2>功能参考</h2>
-          <p class="section-intro">使用指南讲完整流程；功能参考则适合直接查某个按钮、选项或使用限制。</p>
-          <div class="reference-banner">
-            <div class="reference-banner-copy">
-              <h3>73 项功能，按游戏页面整理</h3>
-              <p>每项都写明入口、具体作用、使用条件，以及是否需要登录或会不会影响成绩上传。</p>
-              <div class="reference-examples" aria-label="搜索示例"><span>练习模式</span><span>判定偏移</span><span>节点测速</span><span>视频背景</span></div>
-            </div>
-            <a class="reference-cta" href="reference.html">打开功能参考 →</a>
-          </div>
-        </section>
-
-        <section class="doc-section" id="faq">
-          <p class="section-kicker">FAQ</p>
-          <h2>常见问题</h2>
-          <details><summary>导入谱面后没有声音或封面怎么办？</summary><p>先确认音频与封面都使用 <code>base.*</code> 命名，并检查文件格式是否受支持。批量导入时，每个关卡应位于独立子文件夹中。</p></details>
-          <details><summary>为什么这一局没有上传排行榜？</summary><p>开启任意 Mod、处于练习模式或娱乐联机房时，成绩都不会上传。结算页会显示对应标记。</p></details>
-          <details><summary>判定偏移应该看哪一个数字？</summary><p>长期校准优先使用“设备校准”里的建议值。本局分数最优偏移只适合解释这一张谱，不一定代表设备真实延迟。</p></details>
-          <details><summary>为什么本地谱面不能用于联机？</summary><p>联机需要所有玩家取得完全相同的谱面资源，因此谱面必须先关联在线版本，纯本地内容无法直接开局。</p></details>
-        </section>
-
-        <footer class="article-footer">
-          <span>Anoawa · 玩法基于 Arcaea · 非官方作品</span>
-          <a href="reference.html">功能参考</a>
-          <a href="#overview">回到顶部 ↑</a>
-        </footer>
-      </article>
-    </main>
-  </div>
-
-  <script>
-    const menuButton = document.querySelector('.menu-button');
-    const sidebar = document.querySelector('.sidebar');
-    const sideLinks = [...document.querySelectorAll('.side-nav a')];
-    const sections = [...document.querySelectorAll('main [id]')];
-
-    function closeMenu() {
-      sidebar.classList.remove('open');
-      menuButton.setAttribute('aria-expanded', 'false');
+    for (const option of SORT_OPTIONS) {
+      sortSelect.append(el('option', { value: option.value }, option.label));
     }
 
-    menuButton.addEventListener('click', () => {
-      const isOpen = sidebar.classList.toggle('open');
-      menuButton.setAttribute('aria-expanded', String(isOpen));
-    });
+    // 状态放 URL 里：刷新、前进后退、分享链接都能还原同一屏结果
+    const state = readState();
+    searchInput.value = state.search;
+    sortSelect.value = state.sortBy;
+    orderSelect.value = state.sortOrder;
 
-    sideLinks.forEach(link => link.addEventListener('click', closeMenu));
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') closeMenu();
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      state.search = searchInput.value;
+      state.page = 1;
+      load();
     });
-
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries
-        .filter(entry => entry.isIntersecting)
-        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (!visible) return;
-      sideLinks.forEach(link => {
-        link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`);
+    for (const select of [sortSelect, orderSelect]) {
+      select.addEventListener('change', () => {
+        state.sortBy = sortSelect.value;
+        state.sortOrder = orderSelect.value;
+        state.page = 1;
+        load();
       });
-    }, { rootMargin: '-18% 0px -72% 0px' });
+    }
+    document.getElementById('prev').addEventListener('click', () => turnPage(-1));
+    document.getElementById('next').addEventListener('click', () => turnPage(1));
+    addEventListener('popstate', () => {
+      Object.assign(state, readState());
+      searchInput.value = state.search;
+      sortSelect.value = state.sortBy;
+      orderSelect.value = state.sortOrder;
+      load({ push: false });
+    });
 
-    sections.forEach(section => observer.observe(section));
+    // ---------- 加载 ----------
+
+    // 必须声明在首次 load() 之前：let 有暂时性死区，而 load() 第一行就读它。
+    // 放在下面的话进页面首次加载会抛 ReferenceError，又因为 load 是 async，
+    // 错误变成未处理的 rejection，页面上一片空白、控制台之外毫无提示——
+    // 而点搜索时模块顶层已执行完，反而正常，症状会非常费解。
+    let requestSeq = 0;
+
+    load({ push: false });
+
+    async function load({ push = true } = {}) {
+      const seq = ++requestSeq;
+      hideBox(errorBox);
+      renderSkeletons();
+      pager.hidden = true;
+      meta.textContent = '';
+
+      if (push) writeState();
+
+      let result;
+      try {
+        result = await listLevels({ ...state, pageSize: PAGE_SIZE });
+      } catch (error) {
+        if (seq !== requestSeq) return;   // 已经有更新的请求发出去了，丢弃这次的结果
+        clear(grid);
+        showBox(errorBox, describeError(error), 'error');
+        return;
+      }
+      if (seq !== requestSeq) return;
+
+      render(result);
+    }
+
+    function render(result) {
+      clear(grid);
+
+      if (!result.items.length) {
+        grid.append(el('div', { class: 'empty', style: 'grid-column:1/-1' },
+          el('h3', {}, state.search ? '没有匹配的谱面' : '还没有谱面'),
+          el('p', {}, state.search ? '换个关键词试试，搜索会匹配曲名、曲师、谱师、画师和标签。' : '等第一位谱师上传吧。'),
+        ));
+        return;
+      }
+
+      for (const level of result.items) grid.append(levelCard(level));
+
+      const totalPages = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+      meta.textContent = `共 ${result.totalCount} 张谱面`;
+
+      if (totalPages > 1) {
+        pager.hidden = false;
+        document.getElementById('page-info').textContent = `${result.page} / ${totalPages}`;
+        document.getElementById('prev').disabled = result.page <= 1;
+        document.getElementById('next').disabled = result.page >= totalPages;
+        state.totalPages = totalPages;
+      }
+    }
+
+    function levelCard(level) {
+      const card = el('a', {
+        class: 'level-card',
+        href: `level.html?id=${encodeURIComponent(level.id)}`,
+      });
+      applyTheme(card, level.themeColor);
+
+      const cover = coverImage(level, { alt: `${level.levelName} 封面` });
+      if (level.displayDifficulty) {
+        cover.append(el('span', { class: 'diff-badge' }, level.displayDifficulty));
+      }
+      // 非 Approved 的只可能是自己上传的——后端不会把别人审核中的谱面发过来
+      if (level.status && level.status !== 'Approved') {
+        cover.append(el('span', {
+          class: `status-badge ${level.status.toLowerCase()}`,
+        }, STATUS_LABELS[level.status] || level.status));
+      }
+
+      card.append(
+        cover,
+        el('div', {},
+          el('h3', { class: 'level-title' }, level.levelName),
+          el('p', { class: 'level-sub' }, level.composerName),
+          el('p', { class: 'level-sub' }, `谱面 ${level.charterName}`),
+        ),
+        el('div', { class: 'level-foot' },
+          el('span', { class: 'stat', title: '游玩次数' }, '▶', el('span', { class: 'num' }, formatCount(level.playCount))),
+          el('span', { class: 'stat', title: '点赞数' }, '♥', el('span', { class: 'num' }, formatCount(level.likeCount))),
+          el('span', { class: 'stat num', style: 'margin-left:auto', title: '时长' }, formatDuration(level.durationSeconds)),
+        ),
+      );
+      return card;
+    }
+
+    function renderSkeletons() {
+      clear(grid);
+      for (let i = 0; i < 8; i += 1) {
+        grid.append(el('div', { class: 'skeleton skeleton-card' }));
+      }
+    }
+
+    function turnPage(delta) {
+      const next = state.page + delta;
+      if (next < 1 || (state.totalPages && next > state.totalPages)) return;
+      state.page = next;
+      load();
+      scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ---------- URL 状态 ----------
+
+    function readState() {
+      const params = new URLSearchParams(location.search);
+      const sortBy = params.get('sort') || 'created';
+      return {
+        search: params.get('q') || '',
+        page: Math.max(1, Number.parseInt(params.get('page') || '1', 10) || 1),
+        // 后端对无法识别的 sortBy 会静默落回 created，这里先挡一道，免得 UI 显示的和实际排序不一致
+        sortBy: SORT_OPTIONS.some(o => o.value === sortBy) ? sortBy : 'created',
+        sortOrder: params.get('order') === 'asc' ? 'asc' : 'desc',
+        totalPages: 0,
+      };
+    }
+
+    function writeState() {
+      const params = new URLSearchParams();
+      if (state.search.trim()) params.set('q', state.search.trim());
+      if (state.page > 1) params.set('page', String(state.page));
+      if (state.sortBy !== 'created') params.set('sort', state.sortBy);
+      if (state.sortOrder !== 'desc') params.set('order', state.sortOrder);
+
+      const query = params.toString();
+      history.pushState(null, '', query ? `?${query}` : location.pathname);
+    }
   </script>
 </body>
 </html>
