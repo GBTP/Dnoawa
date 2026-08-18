@@ -27,11 +27,32 @@
 
     .claims { display: grid; gap: 1px; margin-top: 20px; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; background: var(--hairline); }
     .claim { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(10, 10, 22, .74); font-size: 14px; }
-    .claim .role { flex: 0 0 92px; color: var(--faint); font-size: 12.5px; }
+    .claim .role { flex: 0 0 84px; color: var(--faint); font-size: 12.5px; }
     .claim .file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .claim .size { color: var(--faint); font-size: 12.5px; }
+    .claim .note { color: var(--faint); font-size: 12.5px; }
     .claim.missing .file { color: var(--rose); }
-    .claim.optional .role::after { content: ' ·选填'; color: var(--faint); }
+    .claim.rejected .note { color: var(--gold); }
+
+    .difficulties { display: flex; flex-wrap: wrap; gap: 8px; }
+    .diff-pick {
+      position: relative;
+      padding: 9px 16px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius);
+      background: rgba(0, 0, 0, .3);
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .diff-pick input { position: absolute; opacity: 0; pointer-events: none; }
+    .diff-pick:has(input:checked) {
+      border-color: transparent;
+      color: #fff;
+      background: linear-gradient(135deg, var(--neon), #7b3fe4);
+      box-shadow: 0 6px 20px rgba(185, 103, 255, .3);
+    }
+    .diff-pick small { display: block; color: var(--faint); font-weight: 500; font-size: 11.5px; }
+    .diff-pick:has(input:checked) small { color: rgba(255,255,255,.75); }
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
     @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
@@ -40,6 +61,8 @@
     .progress span { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--neon), var(--pink)); transition: width .25s var(--ease); }
     .stage { margin-top: 10px; color: var(--muted); font-size: 14px; }
     .swatch { width: 46px; padding: 0; border: 1px solid var(--hairline-strong); border-radius: var(--radius); background: none; }
+    .check { display: flex; gap: 9px; align-items: flex-start; font-size: 14.5px; cursor: pointer; }
+    .check input { margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -60,14 +83,14 @@
   <main class="page" style="max-width:760px">
     <div class="page-head">
       <h1>上传<span class="gradient-text">谱面</span></h1>
-      <p>把游戏里导出的整个文件夹拖进来即可，各文件会自动认领。</p>
+      <p>把谱面文件夹整个拖进来，各文件会按客户端的规则自动认领。</p>
     </div>
 
     <div class="card">
       <div class="dropzone" id="dropzone" tabindex="0" role="button">
         <h3>拖入谱面文件夹</h3>
-        <p>需要 <code>.aff</code> 谱面、音频和曲绘；<code>bg.jpg</code> / <code>effect.bin</code> / <code>.wav</code> 会一并打包</p>
-        <span class="or">或点击选择文件</span>
+        <p>需要 <code>0.aff</code>~<code>4.aff</code>、<code>base</code> 音频和 <code>base</code> 曲绘</p>
+        <span class="or">songlist、bg 图/视频、effect.bin、音效 wav 都会自动识别</span>
         <input type="file" id="picker" multiple hidden>
       </div>
 
@@ -76,6 +99,14 @@
 
       <form id="form" hidden>
         <hr class="divider">
+
+        <div class="field" id="diff-field" hidden>
+          <label>上传哪个难度</label>
+          <div class="difficulties" id="difficulties"></div>
+          <p class="hint">一个谱面文件夹可能有多个难度，社区里每个难度是独立的一张谱面。</p>
+        </div>
+
+        <div class="callout success" id="songlist-note" hidden></div>
 
         <div class="grid-2">
           <div class="field">
@@ -96,13 +127,22 @@
           </div>
           <div class="field">
             <label for="displayDifficulty">显示难度</label>
-            <input class="input" id="displayDifficulty" required maxlength="16" placeholder="例如 11 或 FTR 10">
+            <input class="input" id="displayDifficulty" required maxlength="16">
           </div>
           <div class="field">
             <label for="baseBpm">BPM</label>
             <input class="input" id="baseBpm" type="number" step="0.01" min="1" required>
           </div>
+          <div class="field">
+            <label for="previewStart">试听起点（秒）</label>
+            <input class="input" id="previewStart" type="number" step="0.1" min="0">
+          </div>
+          <div class="field">
+            <label for="previewEnd">试听终点（秒）</label>
+            <input class="input" id="previewEnd" type="number" step="0.1" min="0">
+          </div>
         </div>
+        <p class="hint" style="margin:-8px 0 18px">留空则取全曲 30% 处的 30 秒，与游戏内一致。最长 60 秒。</p>
 
         <div class="field">
           <label for="themeColor">主题色</label>
@@ -110,7 +150,6 @@
             <input class="input" id="themeColor" value="#4B65B0" maxlength="7" pattern="#[0-9A-Fa-f]{6}">
             <input class="input swatch" id="themeSwatch" type="color" value="#4B65B0" aria-label="选择主题色">
           </div>
-          <p class="hint">谱面在游戏和网页上的强调色。</p>
         </div>
 
         <div class="field">
@@ -123,10 +162,17 @@
           <textarea class="input" id="introduction" rows="3" maxlength="500"></textarea>
         </div>
 
+        <div class="field" id="video-field" hidden>
+          <label class="check">
+            <input type="checkbox" id="includeVideo">
+            <span>一并上传背景视频<small class="hint" id="video-note" style="display:block"></small></span>
+          </label>
+        </div>
+
         <div class="field">
-          <label>
+          <label class="check">
             <input type="checkbox" id="allowExport">
-            允许其他玩家把下载后的谱面导出成文件夹
+            <span>允许其他玩家把下载后的谱面导出成文件夹</span>
           </label>
           <p class="hint">不勾选的话，下载者只能游玩，不能再导出成可编辑的源文件。</p>
         </div>
@@ -148,7 +194,10 @@
 
   <script type="module">
     import { requireLogin, describeError, logout } from './js/api.js';
-    import { claimFiles, describeMissing, submitLevel } from './js/upload.js';
+    import {
+      scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
+    } from './js/upload.js';
+    import { DIFF_NAMES } from './js/songlist.js';
     import { el, clear } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -160,7 +209,10 @@
     const claimWarning = document.getElementById('claim-warning');
     const form = document.getElementById('form');
 
-    let claimed = null;
+    let scan = null;
+    let folderName = '';
+    let videoProbe = null;
+    let difficultyIndex = 0;
 
     // ---------- 选文件 ----------
 
@@ -168,29 +220,27 @@
     dropzone.addEventListener('keydown', event => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); picker.click(); }
     });
-    picker.addEventListener('change', () => accept([...picker.files]));
+    picker.addEventListener('change', () => {
+      const files = [...picker.files];
+      accept(files, files[0]?.webkitRelativePath?.split('/')[0] || '');
+    });
 
     for (const type of ['dragenter', 'dragover']) {
-      dropzone.addEventListener(type, event => {
-        event.preventDefault();
-        dropzone.classList.add('over');
-      });
+      dropzone.addEventListener(type, event => { event.preventDefault(); dropzone.classList.add('over'); });
     }
     for (const type of ['dragleave', 'drop']) {
       dropzone.addEventListener(type, () => dropzone.classList.remove('over'));
     }
     dropzone.addEventListener('drop', async event => {
       event.preventDefault();
-      accept(await filesFromDrop(event.dataTransfer));
+      const { files, name } = await filesFromDrop(event.dataTransfer);
+      accept(files, name);
     });
 
-    /** 拖进来的可能是文件夹，要递归展开成文件列表。 */
+    /** 拖进来的可能是文件夹，递归展开成扁平文件列表，顺便记住顶层目录名。 */
     async function filesFromDrop(transfer) {
-      const entries = [...transfer.items]
-        .map(item => item.webkitGetAsEntry?.())
-        .filter(Boolean);
-
-      if (!entries.length) return [...transfer.files];
+      const entries = [...transfer.items].map(item => item.webkitGetAsEntry?.()).filter(Boolean);
+      if (!entries.length) return { files: [...transfer.files], name: '' };
 
       const files = [];
       const walk = async entry => {
@@ -198,7 +248,7 @@
           files.push(await new Promise((res, rej) => entry.file(res, rej)));
         } else if (entry.isDirectory) {
           const reader = entry.createReader();
-          // readEntries 一次最多给 100 条，要一直读到空为止
+          // readEntries 一次最多返回 100 条，要一直读到空为止
           for (;;) {
             const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
             if (!batch.length) break;
@@ -207,62 +257,173 @@
         }
       };
       for (const entry of entries) await walk(entry);
-      return files;
+
+      const dir = entries.find(e => e.isDirectory);
+      return { files, name: dir ? dir.name : '' };
     }
 
-    function accept(files) {
+    async function accept(files, name) {
       if (!files.length) return;
-      claimed = claimFiles(files);
-      renderClaims();
+      scan = scanFiles(files);
+      folderName = name;
+      videoProbe = scan.video ? await probeVideo(scan.video) : null;
+      await render();
     }
 
-    function renderClaims() {
+    // ---------- 认领结果 ----------
+
+    async function render() {
       clear(claimsBox);
       claimsBox.hidden = false;
 
-      const rows = [
-        ['谱面', claimed.chart, false],
-        ['音频', claimed.music, false],
-        ['曲绘', claimed.cover, false],
-        ['背景图', claimed.background, true],
-        ['演出效果', claimed.effect, true],
-      ];
-      for (const wav of claimed.wavs) rows.push(['音效', wav, true]);
+      const found = availableDifficulties(scan);
 
-      for (const [role, file, optional] of rows) {
+      const rows = [
+        ['谱面', found.length ? found.map(d => d.file.name).join('、') : null, found.length ? `${found.length} 个难度` : ''],
+        ['音频', scan.music?.name, ''],
+        ['曲绘', scan.cover?.name, ''],
+        ['songlist', scan.songlist?.name, scan.songlist ? '将用于预填' : '未提供'],
+        ['背景图', scan.background?.name, scan.background ? '打进谱面包' : '未提供'],
+        ['演出效果', scan.effect?.name, scan.effect ? '打进谱面包' : '未提供'],
+        ['音效', scan.wavs.length ? scan.wavs.map(w => w.name).join('、') : null, scan.wavs.length ? `${scan.wavs.length} 个` : '未提供'],
+        ['背景视频', scan.video?.name, videoNote()],
+      ];
+
+      const required = new Set(['谱面', '音频', '曲绘']);
+      for (const [role, value, note] of rows) {
+        const missing = !value && required.has(role);
         claimsBox.append(el('div', {
-          class: `claim${file ? '' : ' missing'}${optional ? ' optional' : ''}`,
+          class: `claim${missing ? ' missing' : ''}${role === '背景视频' && videoProbe && !videoProbe.ok ? ' rejected' : ''}`,
         },
           el('span', { class: 'role' }, role),
-          el('span', { class: 'file' }, file ? file.name : (optional ? '未提供' : '缺失')),
-          file ? el('span', { class: 'size num' }, formatSize(file.size)) : null,
+          el('span', { class: 'file' }, value || (missing ? '缺失' : '未提供')),
+          note ? el('span', { class: 'note' }, note) : null,
         ));
       }
 
-      const missing = describeMissing(claimed);
+      if (scan.error) {
+        claimWarning.textContent = scan.error;
+        claimWarning.hidden = false;
+        form.hidden = true;
+        return;
+      }
+
+      const missing = describeMissing(scan);
       if (missing.length) {
         claimWarning.textContent = `还缺少：${missing.join('、')}`;
         claimWarning.hidden = false;
         form.hidden = true;
         return;
       }
+
       claimWarning.hidden = true;
       form.hidden = false;
-      prefill();
+      renderDifficulties(found);
+      setupVideo();
+      await applyPrefill();
     }
 
-    /** 从文件夹名猜曲名，省得谱师再敲一遍。 */
-    function prefill() {
-      const nameInput = document.getElementById('levelName');
-      if (!nameInput.value && claimed.chart?.webkitRelativePath) {
-        nameInput.value = claimed.chart.webkitRelativePath.split('/')[0] || '';
+    function videoNote() {
+      if (!scan.video) return '未提供';
+      if (!videoProbe) return '';
+      return videoProbe.ok
+        ? `${videoProbe.width}×${videoProbe.height}，可上传`
+        : videoProbe.reason;
+    }
+
+    function renderDifficulties(found) {
+      const field = document.getElementById('diff-field');
+      const box = document.getElementById('difficulties');
+      clear(box);
+
+      difficultyIndex = found[0].index;
+      // 只有一个难度就没必要让用户选
+      field.hidden = found.length < 2;
+      if (found.length < 2) return;
+
+      for (const item of found) {
+        const input = el('input', {
+          type: 'radio', name: 'difficulty', value: String(item.index),
+        });
+        input.checked = item.index === difficultyIndex;
+        input.addEventListener('change', async () => {
+          difficultyIndex = item.index;
+          await applyPrefill();
+        });
+        box.append(el('label', { class: 'diff-pick' }, input, DIFF_NAMES[item.index],
+          el('small', {}, item.file.name)));
       }
     }
 
-    // ---------- 主题色两个控件互相同步 ----------
+    function setupVideo() {
+      const field = document.getElementById('video-field');
+      const checkbox = document.getElementById('includeVideo');
+      const note = document.getElementById('video-note');
+
+      field.hidden = !scan.video;
+      if (!scan.video) return;
+
+      if (videoProbe?.ok) {
+        checkbox.disabled = false;
+        checkbox.checked = true;
+        note.textContent = `${scan.video.name} · ${videoProbe.width}×${videoProbe.height} · ${(scan.video.size / 1024 / 1024).toFixed(1)}MB`;
+      } else {
+        // 浏览器里转不了码（客户端用的 VideoNormalizer 在网页上没有对等实现），
+        // 与其上传后被后端 400，不如提前说清楚
+        checkbox.disabled = true;
+        checkbox.checked = false;
+        note.textContent = `${videoProbe?.reason || '无法识别'}。网页端不能转码，请先用客户端上传或自行转成合规的 MP4。`;
+      }
+    }
+
+    /** songlist 的预填只覆盖用户还没改过的字段。 */
+    async function applyPrefill() {
+      const prefill = await buildPrefill(scan, difficultyIndex, folderName);
+      const note = document.getElementById('songlist-note');
+
+      const fields = [
+        ['levelName', prefill.levelName],
+        ['composerName', prefill.composerName],
+        ['charterName', prefill.charterName],
+        ['artistName', prefill.artistName],
+        ['displayDifficulty', prefill.displayDifficulty],
+        ['baseBpm', prefill.baseBpm ? String(prefill.baseBpm) : ''],
+        ['previewStart', prefill.previewStart > 0 ? String(prefill.previewStart) : ''],
+        ['previewEnd', prefill.previewEnd > 0 ? String(prefill.previewEnd) : ''],
+      ];
+      for (const [id, value] of fields) {
+        const input = document.getElementById(id);
+        // 难度切换时这几个是跟着难度走的，要覆盖；其余保留用户已输入的内容
+        const followsDifficulty = ['displayDifficulty', 'charterName', 'artistName'].includes(id);
+        if (value && (followsDifficulty || !input.dataset.touched)) input.value = value;
+      }
+
+      setThemeColor(prefill.themeColor);
+
+      if (prefill.fromSonglist) {
+        note.textContent = '已从 songlist 读取曲目信息，请核对后再提交。';
+        note.hidden = false;
+      } else {
+        note.hidden = true;
+      }
+    }
+
+    // 用户手动改过的字段，切难度时不要被覆盖
+    for (const id of ['levelName', 'composerName', 'baseBpm', 'previewStart', 'previewEnd']) {
+      document.getElementById(id).addEventListener('input', event => {
+        event.target.dataset.touched = '1';
+      });
+    }
+
+    // ---------- 主题色 ----------
 
     const themeText = document.getElementById('themeColor');
     const themeSwatch = document.getElementById('themeSwatch');
+    function setThemeColor(hex) {
+      if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+      themeText.value = hex.toUpperCase();
+      themeSwatch.value = hex;
+    }
     themeText.addEventListener('input', () => {
       if (/^#[0-9a-f]{6}$/i.test(themeText.value)) themeSwatch.value = themeText.value;
     });
@@ -298,13 +459,14 @@
         themeColor: /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0',
         introduction: value('introduction'),
         allowExport: document.getElementById('allowExport').checked,
+        includeVideo: document.getElementById('includeVideo').checked,
         tags: value('tags').split(/[,，]/).map(t => t.trim()).filter(Boolean),
-        previewStart: NaN,
-        previewEnd: NaN,
+        previewStart: Number(value('previewStart')),
+        previewEnd: Number(value('previewEnd')),
       };
 
       try {
-        const id = await submitLevel(claimed, meta, (text, ratio) => {
+        const id = await submitLevel(scan, difficultyIndex, meta, (text, ratio) => {
           stage.textContent = text;
           if (typeof ratio === 'number') progressBar.style.width = `${Math.round(ratio * 100)}%`;
         });
@@ -329,12 +491,6 @@
     });
 
     function value(id) { return document.getElementById(id).value.trim(); }
-
-    function formatSize(bytes) {
-      if (bytes < 1024) return `${bytes} B`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    }
   </script>
 </body>
 </html>

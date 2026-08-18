@@ -220,6 +220,93 @@ export async function processImage(file, { maxWidth, maxHeight, quality }) {
   }
 }
 
+// ---------- 背景视频 ----------
+
+/**
+ * 后端 VideoValidationService 的硬限制。改这里之前先看服务端有没有一起改。
+ */
+export const VIDEO_LIMITS = {
+  maxBytes: 150 * 1024 * 1024,
+  maxBitrateBps: 8_000_000,
+  maxShortSide: 760,
+  maxLongSide: 1000,
+};
+
+/**
+ * 检查一个视频能不能直接上传。
+ *
+ * 浏览器里做不了转码——客户端用 VideoNormalizer 转 MP4/H.264，网页要对等就得引
+ * ffmpeg.wasm（25MB 起），代价太大。所以只做"合规就透传、不合规就说清楚"：
+ * 用原生 <video> 读尺寸和时长（能读出来本身就说明浏览器解得开这个编码），
+ * 再按后端的四条限制判一遍，把 400 提前到上传之前。
+ *
+ * @returns {Promise<{ok: boolean, reason?: string, width?: number, height?: number,
+ *   duration?: number, bitrate?: number}>}
+ */
+export async function probeVideo(file) {
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isMp4 = String.fromCharCode(...head.subarray(4, 8)) === 'ftyp';
+  if (!isMp4) {
+    return { ok: false, reason: '不是 MP4 容器，后端只接受 MP4/H.264' };
+  }
+  if (file.size > VIDEO_LIMITS.maxBytes) {
+    return { ok: false, reason: `文件 ${(file.size / 1024 / 1024).toFixed(0)}MB 超过上限 150MB` };
+  }
+
+  const meta = await readVideoMetadata(file);
+  if (!meta) {
+    return { ok: false, reason: '浏览器无法解码这个视频，可能不是 H.264 编码' };
+  }
+
+  const shortSide = Math.min(meta.width, meta.height);
+  const longSide = Math.max(meta.width, meta.height);
+  if (shortSide > VIDEO_LIMITS.maxShortSide || longSide > VIDEO_LIMITS.maxLongSide) {
+    return {
+      ok: false,
+      ...meta,
+      reason: `分辨率 ${meta.width}×${meta.height} 超限（短边需 ≤${VIDEO_LIMITS.maxShortSide}，长边需 ≤${VIDEO_LIMITS.maxLongSide}）`,
+    };
+  }
+
+  const bitrate = meta.duration > 0 ? (file.size * 8) / meta.duration : 0;
+  if (bitrate > VIDEO_LIMITS.maxBitrateBps) {
+    return {
+      ok: false,
+      ...meta,
+      bitrate,
+      reason: `码率约 ${(bitrate / 1e6).toFixed(1)}Mbps 超过上限 8Mbps`,
+    };
+  }
+
+  return { ok: true, ...meta, bitrate };
+}
+
+function readVideoMetadata(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+
+    const done = result => {
+      URL.revokeObjectURL(url);
+      video.removeAttribute('src');
+      resolve(result);
+    };
+
+    video.onloadedmetadata = () => done({
+      width: video.videoWidth,
+      height: video.videoHeight,
+      duration: Number.isFinite(video.duration) ? video.duration : 0,
+    });
+    video.onerror = () => done(null);
+    // 有些容器 metadata 事件不触发，别把界面吊死在这
+    setTimeout(() => done(null), 8000);
+
+    video.src = url;
+  });
+}
+
 // ---------- ZIP 打包 ----------
 
 const CRC_TABLE = (() => {
