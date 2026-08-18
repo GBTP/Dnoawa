@@ -53,10 +53,13 @@ export function isOggVorbis(bytes) {
 // ---------- 音频 ----------
 
 let audioCtx = null;
-function context() {
+
+/** 全模块共用一个 AudioContext——浏览器对同时存在的 context 数量有上限。 */
+export function audioContext() {
   audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
 }
+const context = audioContext;
 
 /**
  * 解码任意音频文件成 AudioBuffer。

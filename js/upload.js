@@ -163,10 +163,12 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
  * @param {number} difficultyIndex  要上传哪个难度档
  * @param {object} meta             表单里的元数据
  * @param {(stage: string, ratio?: number) => void} report
- * @param {AbortSignal} [signal]
+ * @param {object} [options]
+ * @param {AbortSignal} [options.signal]
+ * @param {AudioBuffer} [options.decoded] 页面上画波形时已经解好的音频，传进来免得再解一遍
  * @returns {Promise<number>} 新建谱面的 id
  */
-export async function submitLevel(scan, difficultyIndex, meta, report, signal) {
+export async function submitLevel(scan, difficultyIndex, meta, report, { signal, decoded } = {}) {
   const chartFile = scan.charts[difficultyIndex];
   if (!chartFile) throw new Error('选中的难度没有对应的谱面文件');
 
@@ -178,9 +180,12 @@ export async function submitLevel(scan, difficultyIndex, meta, report, signal) {
   // 而谱师手上的 base.ogg 本来就是客户端编好的
   const musicIsReady = isOggVorbis(musicBytes);
 
-  report('解码音频');
-  const decoded = await decodeAudio(scan.music);
-  const range = normalizePreviewRange(meta, decoded.duration);
+  let buffer = decoded;
+  if (!buffer) {
+    report('解码音频');
+    buffer = await decodeAudio(scan.music);
+  }
+  const range = normalizePreviewRange(meta, buffer.duration);
 
   let musicBlob;
   if (musicIsReady) {
@@ -188,12 +193,12 @@ export async function submitLevel(scan, difficultyIndex, meta, report, signal) {
   } else {
     report('转码音频');
     musicBlob = await encodeOggVorbis(
-      await resample(decoded, PRESET.music.sampleRate), PRESET.music.vbrQuality);
+      await resample(buffer, PRESET.music.sampleRate), PRESET.music.vbrQuality);
   }
 
   report('生成预览片段');
   const previewBlob = await encodeOggVorbis(
-    await resample(sliceAudio(decoded, range.start, range.end), PRESET.preview.sampleRate),
+    await resample(sliceAudio(buffer, range.start, range.end), PRESET.preview.sampleRate),
     PRESET.preview.vbrQuality);
 
   // ---------- 2. 曲绘 ----------

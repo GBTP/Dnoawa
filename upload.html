@@ -174,7 +174,8 @@
             <input class="input" id="previewEnd" type="number" step="0.1" min="0">
           </div>
         </div>
-        <p class="hint" style="margin:-8px 0 18px">留空则取全曲 30% 处的 30 秒，与游戏内一致。最长 60 秒。</p>
+        <div id="range-slot"></div>
+        <p class="hint" style="margin:8px 0 18px">在波形上拖动框选，或直接改上面的秒数。最长 60 秒，与游戏内一致。</p>
 
         <div class="field">
           <label for="themeColor">主题色</label>
@@ -230,6 +231,8 @@
       scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
     } from './js/upload.js';
     import { DIFF_NAMES, LOCALE_LABELS } from './js/songlist.js';
+    import { decodeAudio } from './js/media.js';
+    import { createPreviewRangeEditor } from './js/preview-range.js';
     import { el, clear } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -245,6 +248,8 @@
     let folderName = '';
     let videoProbe = null;
     let difficultyIndex = 0;
+    let decodedBuffer = null;
+    let rangeEditor = null;
 
     // ---------- 选文件 ----------
 
@@ -353,6 +358,73 @@
       renderDifficulties(found);
       setupVideo();
       await applyPrefill();
+      mountRangeEditor();
+    }
+
+    /**
+     * 波形区间选择器。
+     *
+     * 解码是上传流程本来就要做的（生成预览片段用），这里提前做掉，画波形和试听
+     * 都不额外花成本，解好的 buffer 也会传给 submitLevel，免得再解一遍。
+     */
+    async function mountRangeEditor() {
+      const slot = document.getElementById('range-slot');
+      rangeEditor?.destroy();
+      rangeEditor = null;
+      decodedBuffer = null;
+
+      clear(slot);
+      slot.append(el('div', { class: 'range-loading' }, '正在解析音频波形…'));
+
+      const music = scan.music;
+      try {
+        decodedBuffer = await decodeAudio(music);
+      } catch (error) {
+        clear(slot);
+        slot.append(el('div', { class: 'callout error' },
+          `无法解析音频：${error.message}。仍可手动填写试听区间。`));
+        return;
+      }
+      // 解码期间用户可能又拖了别的文件夹进来，这份结果已经过期
+      if (scan.music !== music) return;
+
+      const startInput = document.getElementById('previewStart');
+      const endInput = document.getElementById('previewEnd');
+
+      rangeEditor = createPreviewRangeEditor({
+        buffer: decodedBuffer,
+        start: Number(startInput.value) || 0,
+        end: Number(endInput.value) || 0,
+        onChange: ({ start, end }) => {
+          startInput.value = start.toFixed(1);
+          endInput.value = end.toFixed(1);
+          startInput.dataset.touched = '1';
+          endInput.dataset.touched = '1';
+        },
+      });
+
+      clear(slot);
+      slot.append(rangeEditor.element);
+
+      // 数字框改动同步回波形（波形自己会做上下限夹取）
+      for (const input of [startInput, endInput]) {
+        input.addEventListener('change', () => {
+          rangeEditor?.setRange({
+            start: Number(startInput.value) || 0,
+            end: Number(endInput.value) || 0,
+          });
+          const current = rangeEditor?.getRange();
+          if (current) {
+            startInput.value = current.start.toFixed(1);
+            endInput.value = current.end.toFixed(1);
+          }
+        });
+      }
+
+      // 初始区间回填进数字框（songlist 没给区间时这里就是默认的 30% 处 30 秒）
+      const initial = rangeEditor.getRange();
+      startInput.value = initial.start.toFixed(1);
+      endInput.value = initial.end.toFixed(1);
     }
 
     function videoNote() {
@@ -548,10 +620,11 @@
       };
 
       try {
+        rangeEditor?.destroy();
         const id = await submitLevel(scan, difficultyIndex, meta, (text, ratio) => {
           stage.textContent = text;
           if (typeof ratio === 'number') progressBar.style.width = `${Math.round(ratio * 100)}%`;
-        });
+        }, { decoded: decodedBuffer });
 
         progressBar.style.width = '100%';
         stage.hidden = true;

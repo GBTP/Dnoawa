@@ -803,6 +803,91 @@ img { display: block; max-width: 100%; }
   .board-combo { display: none; }
 }
 
+/* ==========================================================================
+   试听区间选择器（上传页）
+   ========================================================================== */
+
+.range-loading {
+  padding: 30px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, .3);
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.range-editor { margin-top: 4px; }
+
+.range-canvas-wrap {
+  position: relative;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, .34);
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;   /* 否则移动端拖动会被当成滚动 */
+  user-select: none;
+}
+.range-canvas { display: block; width: 100%; }
+
+/* 选中的区间。左右各留一条抓手，中间可整体拖动。 */
+.range-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--neon);
+  border-right: 2px solid var(--neon);
+  background: color-mix(in srgb, var(--neon) 22%, transparent);
+  cursor: grab;
+}
+.range-window:active { cursor: grabbing; }
+
+.range-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: ew-resize;
+}
+.range-handle.left { left: -8px; }
+.range-handle.right { right: -8px; }
+/* 抓手上的那道竖条，纯装饰但让可拖动这件事看得出来 */
+.range-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--neon);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--neon) 70%, transparent);
+}
+.range-handle:focus-visible::after { background: var(--pink); }
+
+.range-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--mint);
+  box-shadow: 0 0 10px var(--mint);
+  pointer-events: none;
+}
+.range-playhead[hidden] { display: none; }
+
+.range-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.range-readout { color: var(--muted); font-size: 13px; }
+/* 已经顶到 60 秒上限，再拖也不会变长 */
+.range-readout.at-limit { color: var(--gold); }
+
 @media (max-width: 640px) {
   .level-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
 }
