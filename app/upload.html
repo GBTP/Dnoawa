@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080f">
+  <title>上传谱面 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+  <style>
+    .dropzone {
+      display: grid;
+      place-items: center;
+      gap: 8px;
+      padding: 46px 24px;
+      border: 2px dashed var(--hairline-strong);
+      border-radius: var(--radius-lg);
+      background: rgba(0, 0, 0, .26);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .18s var(--ease), background .18s var(--ease);
+    }
+    .dropzone:hover, .dropzone.over { border-color: var(--neon); background: rgba(185, 103, 255, .09); }
+    .dropzone h3 { margin: 0; font-size: 17px; }
+    .dropzone p { margin: 0; color: var(--muted); font-size: 14px; }
+    .dropzone .or { color: var(--faint); font-size: 13px; }
+
+    .claims { display: grid; gap: 1px; margin-top: 20px; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; background: var(--hairline); }
+    .claim { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(10, 10, 22, .74); font-size: 14px; }
+    .claim .role { flex: 0 0 92px; color: var(--faint); font-size: 12.5px; }
+    .claim .file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .claim .size { color: var(--faint); font-size: 12.5px; }
+    .claim.missing .file { color: var(--rose); }
+    .claim.optional .role::after { content: ' ·选填'; color: var(--faint); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+    @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .progress { height: 8px; margin-top: 12px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+    .progress span { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--neon), var(--pink)); transition: width .25s var(--ease); }
+    .stage { margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .swatch { width: 46px; padding: 0; border: 1px solid var(--hairline-strong); border-radius: var(--radius); background: none; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <span class="brand-mark">A</span>
+        Anoawa <small>社区</small>
+      </a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link current" href="upload.html">上传</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:760px">
+    <div class="page-head">
+      <h1>上传<span class="gradient-text">谱面</span></h1>
+      <p>把游戏里导出的整个文件夹拖进来即可，各文件会自动认领。</p>
+    </div>
+
+    <div class="card">
+      <div class="dropzone" id="dropzone" tabindex="0" role="button">
+        <h3>拖入谱面文件夹</h3>
+        <p>需要 <code>.aff</code> 谱面、音频和曲绘；<code>bg.jpg</code> / <code>effect.bin</code> / <code>.wav</code> 会一并打包</p>
+        <span class="or">或点击选择文件</span>
+        <input type="file" id="picker" multiple hidden>
+      </div>
+
+      <div class="claims" id="claims" hidden></div>
+      <div class="callout warning" id="claim-warning" hidden></div>
+
+      <form id="form" hidden>
+        <hr class="divider">
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="levelName">曲名</label>
+            <input class="input" id="levelName" required maxlength="80">
+          </div>
+          <div class="field">
+            <label for="composerName">曲师</label>
+            <input class="input" id="composerName" required maxlength="80">
+          </div>
+          <div class="field">
+            <label for="charterName">谱师</label>
+            <input class="input" id="charterName" required maxlength="80">
+          </div>
+          <div class="field">
+            <label for="artistName">曲绘</label>
+            <input class="input" id="artistName" required maxlength="80">
+          </div>
+          <div class="field">
+            <label for="displayDifficulty">显示难度</label>
+            <input class="input" id="displayDifficulty" required maxlength="16" placeholder="例如 11 或 FTR 10">
+          </div>
+          <div class="field">
+            <label for="baseBpm">BPM</label>
+            <input class="input" id="baseBpm" type="number" step="0.01" min="1" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="themeColor">主题色</label>
+          <div class="input-row">
+            <input class="input" id="themeColor" value="#4B65B0" maxlength="7" pattern="#[0-9A-Fa-f]{6}">
+            <input class="input swatch" id="themeSwatch" type="color" value="#4B65B0" aria-label="选择主题色">
+          </div>
+          <p class="hint">谱面在游戏和网页上的强调色。</p>
+        </div>
+
+        <div class="field">
+          <label for="tags">标签</label>
+          <input class="input" id="tags" placeholder="用逗号分隔，例如 原创, 高难">
+        </div>
+
+        <div class="field">
+          <label for="introduction">简介</label>
+          <textarea class="input" id="introduction" rows="3" maxlength="500"></textarea>
+        </div>
+
+        <div class="field">
+          <label>
+            <input type="checkbox" id="allowExport">
+            允许其他玩家把下载后的谱面导出成文件夹
+          </label>
+          <p class="hint">不勾选的话，下载者只能游玩，不能再导出成可编辑的源文件。</p>
+        </div>
+
+        <div class="callout">
+          <strong>网页上传的谱面不加密。</strong>
+          <p>谱面加密是客户端的功能，网页这边做不了，所以 <code>.aff</code> 对拿到谱面包的人是明文可读的。介意的话请用客户端上传。</p>
+        </div>
+
+        <button class="button primary block" type="submit" id="submit" style="margin-top:18px">开始上传</button>
+
+        <div class="progress" id="progress" hidden><span></span></div>
+        <p class="stage" id="stage" hidden></p>
+        <div class="callout error" id="error" hidden></div>
+        <div class="callout success" id="done" hidden></div>
+      </form>
+    </div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout } from './js/api.js';
+    import { claimFiles, describeMissing, submitLevel } from './js/upload.js';
+    import { el, clear } from './js/ui.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+    document.getElementById('logout').addEventListener('click', logout);
+
+    const dropzone = document.getElementById('dropzone');
+    const picker = document.getElementById('picker');
+    const claimsBox = document.getElementById('claims');
+    const claimWarning = document.getElementById('claim-warning');
+    const form = document.getElementById('form');
+
+    let claimed = null;
+
+    // ---------- 选文件 ----------
+
+    dropzone.addEventListener('click', () => picker.click());
+    dropzone.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); picker.click(); }
+    });
+    picker.addEventListener('change', () => accept([...picker.files]));
+
+    for (const type of ['dragenter', 'dragover']) {
+      dropzone.addEventListener(type, event => {
+        event.preventDefault();
+        dropzone.classList.add('over');
+      });
+    }
+    for (const type of ['dragleave', 'drop']) {
+      dropzone.addEventListener(type, () => dropzone.classList.remove('over'));
+    }
+    dropzone.addEventListener('drop', async event => {
+      event.preventDefault();
+      accept(await filesFromDrop(event.dataTransfer));
+    });
+
+    /** 拖进来的可能是文件夹，要递归展开成文件列表。 */
+    async function filesFromDrop(transfer) {
+      const entries = [...transfer.items]
+        .map(item => item.webkitGetAsEntry?.())
+        .filter(Boolean);
+
+      if (!entries.length) return [...transfer.files];
+
+      const files = [];
+      const walk = async entry => {
+        if (entry.isFile) {
+          files.push(await new Promise((res, rej) => entry.file(res, rej)));
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          // readEntries 一次最多给 100 条，要一直读到空为止
+          for (;;) {
+            const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+            if (!batch.length) break;
+            for (const child of batch) await walk(child);
+          }
+        }
+      };
+      for (const entry of entries) await walk(entry);
+      return files;
+    }
+
+    function accept(files) {
+      if (!files.length) return;
+      claimed = claimFiles(files);
+      renderClaims();
+    }
+
+    function renderClaims() {
+      clear(claimsBox);
+      claimsBox.hidden = false;
+
+      const rows = [
+        ['谱面', claimed.chart, false],
+        ['音频', claimed.music, false],
+        ['曲绘', claimed.cover, false],
+        ['背景图', claimed.background, true],
+        ['演出效果', claimed.effect, true],
+      ];
+      for (const wav of claimed.wavs) rows.push(['音效', wav, true]);
+
+      for (const [role, file, optional] of rows) {
+        claimsBox.append(el('div', {
+          class: `claim${file ? '' : ' missing'}${optional ? ' optional' : ''}`,
+        },
+          el('span', { class: 'role' }, role),
+          el('span', { class: 'file' }, file ? file.name : (optional ? '未提供' : '缺失')),
+          file ? el('span', { class: 'size num' }, formatSize(file.size)) : null,
+        ));
+      }
+
+      const missing = describeMissing(claimed);
+      if (missing.length) {
+        claimWarning.textContent = `还缺少：${missing.join('、')}`;
+        claimWarning.hidden = false;
+        form.hidden = true;
+        return;
+      }
+      claimWarning.hidden = true;
+      form.hidden = false;
+      prefill();
+    }
+
+    /** 从文件夹名猜曲名，省得谱师再敲一遍。 */
+    function prefill() {
+      const nameInput = document.getElementById('levelName');
+      if (!nameInput.value && claimed.chart?.webkitRelativePath) {
+        nameInput.value = claimed.chart.webkitRelativePath.split('/')[0] || '';
+      }
+    }
+
+    // ---------- 主题色两个控件互相同步 ----------
+
+    const themeText = document.getElementById('themeColor');
+    const themeSwatch = document.getElementById('themeSwatch');
+    themeText.addEventListener('input', () => {
+      if (/^#[0-9a-f]{6}$/i.test(themeText.value)) themeSwatch.value = themeText.value;
+    });
+    themeSwatch.addEventListener('input', () => { themeText.value = themeSwatch.value.toUpperCase(); });
+
+    // ---------- 提交 ----------
+
+    const submitButton = document.getElementById('submit');
+    const progress = document.getElementById('progress');
+    const progressBar = progress.firstElementChild;
+    const stage = document.getElementById('stage');
+    const errorBox = document.getElementById('error');
+    const doneBox = document.getElementById('done');
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+
+      errorBox.hidden = true;
+      doneBox.hidden = true;
+      progress.hidden = false;
+      stage.hidden = false;
+      submitButton.disabled = true;
+
+      const meta = {
+        levelName: value('levelName'),
+        composerName: value('composerName'),
+        charterName: value('charterName'),
+        artistName: value('artistName'),
+        displayDifficulty: value('displayDifficulty'),
+        baseBpm: Number(value('baseBpm')) || 0,
+        bpm: '',
+        themeColor: /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0',
+        introduction: value('introduction'),
+        allowExport: document.getElementById('allowExport').checked,
+        tags: value('tags').split(/[,，]/).map(t => t.trim()).filter(Boolean),
+        previewStart: NaN,
+        previewEnd: NaN,
+      };
+
+      try {
+        const id = await submitLevel(claimed, meta, (text, ratio) => {
+          stage.textContent = text;
+          if (typeof ratio === 'number') progressBar.style.width = `${Math.round(ratio * 100)}%`;
+        });
+
+        progressBar.style.width = '100%';
+        stage.hidden = true;
+        clear(doneBox);
+        doneBox.append(
+          el('strong', {}, '上传成功，等待审核。'),
+          el('p', {}, '审核通过后就会出现在社区谱面库里。'),
+          el('p', {}, el('a', { href: `level.html?id=${id}` }, '查看这张谱面 →')),
+        );
+        doneBox.hidden = false;
+        submitButton.hidden = true;
+      } catch (error) {
+        errorBox.textContent = describeError(error);
+        errorBox.hidden = false;
+        stage.hidden = true;
+        progress.hidden = true;
+        submitButton.disabled = false;
+      }
+    });
+
+    function value(id) { return document.getElementById(id).value.trim(); }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+  </script>
+</body>
+</html>
