@@ -55,7 +55,7 @@
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
     import { listLevels, SORT_OPTIONS, STATUS_LABELS } from './js/levels.js';
     import {
-      el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox, icon,
+      el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -191,8 +191,8 @@
           el('p', { class: 'level-sub' }, `谱面 ${level.charterName}`),
         ),
         el('div', { class: 'level-foot' },
-          el('span', { class: 'stat' }, icon('play', { solid: true, title: '游玩次数' }), el('span', { class: 'num' }, formatCount(level.playCount))),
-          el('span', { class: 'stat' }, icon('heart', { title: '点赞数' }), el('span', { class: 'num' }, formatCount(level.likeCount))),
+          el('span', { class: 'stat', title: '游玩次数' }, '▶', el('span', { class: 'num' }, formatCount(level.playCount))),
+          el('span', { class: 'stat', title: '点赞数' }, '♥', el('span', { class: 'num' }, formatCount(level.likeCount))),
           el('span', { class: 'stat num', style: 'margin-left:auto', title: '时长' }, formatDuration(level.durationSeconds)),
         ),
       );

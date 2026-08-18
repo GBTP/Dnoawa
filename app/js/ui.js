@@ -131,44 +131,6 @@ export function coverImage(level, { alt = '' } = {}) {
   return wrap;
 }
 
-// ---------- 图标 ----------
-
-const ICON_PATHS = {
-  play: 'M6 4l12 8-12 8z',
-  pause: 'M8 5v14M16 5v14',
-  heart: 'M12 20s-7-4.6-7-9.4A4 4 0 0112 8.6 4 4 0 0119 10.6C19 15.4 12 20 12 20z',
-  clock: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  download: 'M12 4v10m0 0l-4-4m4 4l4-4M5 19h14',
-};
-
-/**
- * 内联 SVG 图标。
- *
- * 刻意不用 ▶ ♥ 这类字符：系统会给它们套彩色 emoji 字体，在深色极简界面里很出戏，
- * 而且各平台字形宽度不一致，放进 flex 行里对齐会乱。
- *
- * @param {keyof ICON_PATHS} name
- * @param {{solid?: boolean, title?: string}} [options] solid 为实心填充（如已点赞的心）
- */
-export function icon(name, { solid = false, title } = {}) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', `icon${solid ? ' solid' : ''}`);
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', title ? 'false' : 'true');
-  if (title) svg.setAttribute('role', 'img');
-
-  if (title) {
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    label.textContent = title;
-    svg.append(label);
-  }
-
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', ICON_PATHS[name]);
-  svg.append(path);
-  return svg;
-}
-
 // ---------- 交互 ----------
 
 /** 提交期间禁用按钮并转圈，结束后还原。 */

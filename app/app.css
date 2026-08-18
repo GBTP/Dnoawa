@@ -613,20 +613,6 @@ img { display: block; max-width: 100%; }
 .pager[hidden] { display: none; }
 .pager .page-info { color: var(--muted); font-size: 14px; }
 
-/* 图标一律走内联 SVG，不用 ▶ ♥ 这类字符——系统会给它们套彩色 emoji 字体，
-   在深色极简界面里非常出戏，而且各平台字形宽度不一致会把对齐搞乱 */
-.icon {
-  width: 1em;
-  height: 1em;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vertical-align: -.13em;
-}
-.icon.solid { fill: currentColor; stroke: none; }
 
 /* ==========================================================================
    谱面详情

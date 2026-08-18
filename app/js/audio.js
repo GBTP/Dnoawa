@@ -13,8 +13,6 @@
  * **需要 CDN 返回 Access-Control-Allow-Origin**。拿不到就只能退化成提示。
  */
 
-import { icon } from './ui.js';
-
 const DECODER_SRC = 'vendor/ogg-vorbis-decoder.min.js';
 
 let decoderScriptPromise = null;
@@ -137,7 +135,7 @@ function buildFallbackPlayer(url) {
   const position = () => playing ? offset + (audioContext().currentTime - startedAt) : offset;
 
   function setIcon(name) {
-    playButton.replaceChildren(icon(name, { solid: name === 'play' }));
+    playButton.textContent = name === 'play' ? '▶' : '⏸';
   }
   setIcon('play');
 
