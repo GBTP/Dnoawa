@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080f">
+  <title>谱面详情 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <span class="brand-mark">A</span>
+        Anoawa <small>社区</small>
+      </a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link" href="../index.html">使用指南</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <p class="result-meta"><a href="index.html">← 返回谱面库</a></p>
+    <div id="content"></div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout, ApiError } from './js/api.js';
+    import { getLevel, toggleLike, getLeaderboard, COMBO_LABELS, STATUS_LABELS } from './js/levels.js';
+    import {
+      el, clear, coverImage, applyTheme, formatCount, formatDuration, formatDate,
+      displayName, showBox,
+    } from './js/ui.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+    document.getElementById('logout').addEventListener('click', logout);
+
+    const content = document.getElementById('content');
+    const levelId = new URLSearchParams(location.search).get('id');
+
+    if (!levelId || !/^\d+$/.test(levelId)) {
+      renderError('链接不完整', '缺少谱面编号，请从谱面库进入。');
+    } else {
+      load(levelId);
+    }
+
+    async function load(id) {
+      content.append(el('div', { class: 'skeleton', style: 'height:280px' }));
+
+      let level;
+      try {
+        level = await getLevel(id);
+      } catch (error) {
+        clear(content);
+        // 404 才是真没了；403 是存在但当前不可见（比如别人审核中的谱面），
+        // 两者的文案不能混，否则用户会以为作品被删了
+        if (error instanceof ApiError && error.status === 403) {
+          renderError('暂时不可访问', '这张谱面可能正在审核中，只有上传者和管理员能看到。');
+        } else if (error instanceof ApiError && error.isGone) {
+          renderError('谱面不存在', '它可能已被上传者或管理员删除。');
+        } else {
+          renderError('加载失败', describeError(error));
+        }
+        return;
+      }
+
+      clear(content);
+      renderLevel(level);
+      loadLeaderboard(id);
+    }
+
+    // ---------- 主体 ----------
+
+    function renderLevel(level) {
+      document.title = `${level.levelName} · Anoawa 社区`;
+
+      const hero = el('section', { class: 'hero' });
+      applyTheme(hero, level.themeColor);
+
+      const cover = coverImage(level, { alt: `${level.levelName} 封面` });
+      if (level.displayDifficulty) {
+        cover.append(el('span', { class: 'diff-badge' }, level.displayDifficulty));
+      }
+
+      const info = el('div', { class: 'hero-info' },
+        level.status !== 'Approved'
+          ? el('span', { class: `status-badge ${level.status.toLowerCase()}`, style: 'position:static;display:inline-block;margin-bottom:10px' },
+              STATUS_LABELS[level.status] || level.status)
+          : null,
+        el('h1', {}, level.levelName),
+        el('p', { class: 'hero-artist' }, level.composerName),
+        el('p', { class: 'hero-charter' },
+          `谱面 ${level.charterName}`,
+          level.artistName ? ` · 曲绘 ${level.artistName}` : null),
+        specRow(level),
+        tagRow(level.tags),
+        actions(level),
+      );
+
+      hero.append(el('div', { class: 'hero-layout' },
+        el('div', { class: 'hero-cover' }, cover),
+        info,
+      ));
+      content.append(hero);
+
+      if (level.previewUrl) content.append(previewBlock(level));
+      if (level.introduction?.trim()) {
+        content.append(
+          el('h2', { class: 'section-title' }, '简介'),
+          el('div', { class: 'intro' }, level.introduction),
+        );
+      }
+
+      content.append(
+        el('h2', { class: 'section-title' }, '排行榜'),
+        el('div', { id: 'board' }, el('div', { class: 'skeleton', style: 'height:120px' })),
+      );
+    }
+
+    function specRow(level) {
+      const items = [
+        ['难度', level.displayDifficulty, true],
+        ['BPM', level.bpm || String(level.baseBpm || ''), false],
+        ['时长', formatDuration(level.durationSeconds), false],
+        ['游玩', formatCount(level.playCount), false],
+        ['点赞', formatCount(level.likeCount), false],
+        ['上传者', displayName(level.uploaderNickname, level.uploaderIsAnonymized), false],
+        ['上传于', formatDate(level.createdAtUtc), false],
+      ];
+
+      return el('div', { class: 'spec-row' },
+        items.filter(([, value]) => value).map(([label, value, accent]) =>
+          el('span', { class: `spec${accent ? ' accent' : ''}` },
+            el('span', { class: 'label' }, label),
+            el('span', { class: 'value num' }, value),
+          )),
+      );
+    }
+
+    function tagRow(tags) {
+      if (!tags?.length) return null;
+      return el('div', { class: 'tag-row' }, tags.map(tag => el('span', { class: 'tag' }, tag)));
+    }
+
+    function actions(level) {
+      const like = el('button', { class: 'button like-button', type: 'button' });
+
+      const paintLike = () => {
+        like.classList.toggle('liked', Boolean(level.isLiked));
+        like.textContent = level.isLiked ? `♥ 已赞 ${formatCount(level.likeCount)}` : `♡ 点赞 ${formatCount(level.likeCount)}`;
+      };
+      paintLike();
+
+      like.addEventListener('click', async () => {
+        const original = like.textContent;
+        like.disabled = true;
+        try {
+          const result = await toggleLike(level.id);
+          level.isLiked = result.isLiked;
+          level.likeCount = result.likeCount;
+          paintLike();
+        } catch (error) {
+          like.textContent = original;
+          showBox(document.getElementById('launch-hint'), describeError(error), 'error');
+        } finally {
+          like.disabled = false;
+        }
+      });
+
+      const play = el('button', { class: 'button primary', type: 'button' }, '在 Anoawa 中游玩');
+      play.addEventListener('click', () => launchClient(level.id));
+
+      const fallback = el('div', { class: 'callout warning launch-fallback', id: 'launch-hint', hidden: true });
+
+      return el('div', {},
+        el('div', { class: 'hero-actions' }, play, like),
+        fallback,
+        // 刻意不提供谱面包下载：游戏那边"下载的谱面默认不能编辑/导出，除非上传者
+        // 勾了允许导出"是为了防止作品被改名或二次分发，网页上放裸下载会绕过这套保护。
+      );
+    }
+
+    function previewBlock(level) {
+      return el('div', { class: 'preview-block' },
+        el('h2', { class: 'section-title', style: 'margin-top:0' }, '试听'),
+        // 刻意不加 crossorigin：媒体元素播放跨域资源本来就不需要 CORS，
+        // 加上反而会强制走 CORS 检查，CDN 一旦没返回 ACAO 就直接放不出来。
+        el('audio', {
+          controls: true,
+          preload: 'none',
+          src: level.previewUrl,
+        }),
+        el('p', { class: 'hint' }, '30 秒左右的片段，与游戏内选曲界面听到的是同一段。'),
+      );
+    }
+
+    // ---------- 拉起客户端 ----------
+
+    /**
+     * anoawa://level/{id}
+     *
+     * 客户端目前还没注册这个 scheme（ProjectSettings 的 iOSURLSchemes 为空，
+     * AndroidManifest 里也只有按 MIME 关联的 intent-filter），所以现在点了必然没反应。
+     * 用"跳转后页面有没有失去焦点"来判断有没有被接走，没接走就把提示亮出来。
+     */
+    function launchClient(id) {
+      const hint = document.getElementById('launch-hint');
+      hint.hidden = true;
+
+      let left = false;
+      const onHide = () => { if (document.hidden) left = true; };
+      document.addEventListener('visibilitychange', onHide);
+      addEventListener('blur', onHide, { once: true });
+
+      location.href = `anoawa://level/${id}`;
+
+      setTimeout(() => {
+        document.removeEventListener('visibilitychange', onHide);
+        if (left) return;
+        clear(hint);
+        hint.append(
+          el('strong', {}, '没能唤起 Anoawa。'),
+          el('p', {}, '这个功能需要支持链接跳转的客户端版本，目前还在开发中。'),
+          el('p', {}, '现在可以先打开 Anoawa，在「谱面库 → 在线」里搜索这首曲子。'),
+        );
+        hint.hidden = false;
+      }, 1400);
+    }
+
+    // ---------- 排行榜 ----------
+
+    async function loadLeaderboard(id) {
+      const box = document.getElementById('board');
+      if (!box) return;
+
+      let result;
+      try {
+        result = await getLeaderboard(id, { pageSize: 20 });
+      } catch (error) {
+        clear(box);
+        box.append(el('div', { class: 'callout error' }, describeError(error)));
+        return;
+      }
+
+      clear(box);
+      if (!result.items.length) {
+        box.append(el('div', { class: 'empty' },
+          el('h3', {}, '还没有成绩'),
+          el('p', {}, '成为第一个通关的人。'),
+        ));
+        return;
+      }
+
+      const board = el('div', { class: 'board' });
+      for (const score of result.items) {
+        const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
+        board.append(el('div', { class: 'board-row' },
+          el('span', { class: 'board-rank' }, `#${score.rank}`),
+          el('span', {
+            class: `board-name${score.isAnonymized ? ' anonymized' : ''}`,
+          }, displayName(score.nickname, score.isAnonymized)),
+          el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[score.comboState] || ''),
+          el('span', { class: 'board-score' }, score.score.toLocaleString('en-US')),
+        ));
+      }
+      box.append(board);
+
+      if (result.totalCount > result.items.length) {
+        box.append(el('p', { class: 'result-meta', style: 'margin-top:12px;text-align:center' },
+          `共 ${result.totalCount} 条成绩，这里显示前 ${result.items.length} 名`));
+      }
+    }
+
+    // ---------- 错误页 ----------
+
+    function renderError(title, detail) {
+      clear(content);
+      content.append(el('div', { class: 'card' },
+        el('div', { class: 'empty' },
+          el('h3', {}, title),
+          el('p', {}, detail),
+          el('p', { style: 'margin-top:16px' }, el('a', { href: 'index.html' }, '← 返回谱面库')),
+        ),
+      ));
+    }
+  </script>
+</body>
+</html>
