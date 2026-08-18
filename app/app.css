@@ -608,7 +608,25 @@ img { display: block; max-width: 100%; }
   gap: 12px;
   margin-top: 34px;
 }
+/* [hidden] 的 display:none 优先级低于类选择器里的 display:flex，不显式压一下
+   分页器会一直显示，哪怕只有一页或没有结果 */
+.pager[hidden] { display: none; }
 .pager .page-info { color: var(--muted); font-size: 14px; }
+
+/* 图标一律走内联 SVG，不用 ▶ ♥ 这类字符——系统会给它们套彩色 emoji 字体，
+   在深色极简界面里非常出戏，而且各平台字形宽度不一致会把对齐搞乱 */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -.13em;
+}
+.icon.solid { fill: currentColor; stroke: none; }
 
 /* ==========================================================================
    谱面详情
@@ -694,6 +712,57 @@ img { display: block; max-width: 100%; }
 .preview-block { margin-top: 20px; }
 .preview-block audio { width: 100%; height: 40px; }
 .preview-block .hint { margin: 8px 0 0; color: var(--faint); font-size: 13px; }
+
+/* 不支持 Vorbis 的浏览器（Safari）走 Web Audio，控件得自己画 */
+.wa-player {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, .34);
+}
+.wa-play {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 14px;
+  background: linear-gradient(135deg, var(--neon), #6d3bd8);
+  box-shadow: 0 4px 16px rgba(185, 103, 255, .38);
+  cursor: pointer;
+  transition: transform .15s var(--ease);
+}
+.wa-play:hover { transform: scale(1.06); }
+.wa-play:active { transform: scale(.96); }
+.wa-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  cursor: pointer;
+}
+.wa-fill {
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--neon), var(--pink));
+}
+.wa-time {
+  flex: 0 0 auto;
+  min-width: 84px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: right;
+}
+.wa-player.is-loading .wa-play { opacity: .6; pointer-events: none; }
+.wa-player.is-error { border-color: rgba(244, 63, 94, .4); }
+.wa-player.is-error .wa-time { color: var(--rose); }
 
 /* 简介 */
 .intro {
