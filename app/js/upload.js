@@ -118,6 +118,8 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
 
   const prefill = {
     levelName: folderName || '',
+    /** songlist 里有几种语言的曲名就列几种，交给用户挑。空对象表示没得挑。 */
+    titleOptions: {},
     composerName: '',
     charterName: '',
     artistName: '',
@@ -132,7 +134,11 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
 
   if (!songlist.hasRead) return prefill;
 
-  if (songlist.titleEn) prefill.levelName = songlist.titleEn;
+  prefill.titleOptions = songlist.titles;
+  // 默认仍取 en，和客户端一致；没有 en 就用出现的第一种，再没有才回落文件夹名
+  const firstTitle = Object.values(songlist.titles)[0];
+  prefill.levelName = songlist.titles.en || firstTitle || prefill.levelName;
+
   if (songlist.artist) prefill.composerName = songlist.artist;
   if (songlist.bpmBase > 0) prefill.baseBpm = songlist.bpmBase;
   if (songlist.bpm) prefill.bpm = songlist.bpm;

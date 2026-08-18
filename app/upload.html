@@ -63,6 +63,31 @@
     .swatch { width: 46px; padding: 0; border: 1px solid var(--hairline-strong); border-radius: var(--radius); background: none; }
     .check { display: flex; gap: 9px; align-items: flex-start; font-size: 14.5px; cursor: pointer; }
     .check input { margin-top: 4px; }
+
+    /* songlist 里有几种语言的曲名就列几个，点一下填进输入框；输入框本身照样能改 */
+    .title-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .title-option {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 7px;
+      max-width: 100%;
+      padding: 5px 11px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, .3);
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+    }
+    .title-option:hover { color: var(--text); border-color: var(--neon); }
+    .title-option.active {
+      color: #fff;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--neon), #7b3fe4);
+    }
+    .title-option .locale { flex: 0 0 auto; font-size: 11px; opacity: .72; }
+    .title-option .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -112,6 +137,7 @@
           <div class="field">
             <label for="levelName">曲名</label>
             <input class="input" id="levelName" required maxlength="80">
+            <div class="title-options" id="title-options" hidden></div>
           </div>
           <div class="field">
             <label for="composerName">曲师</label>
@@ -197,7 +223,7 @@
     import {
       scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
     } from './js/upload.js';
-    import { DIFF_NAMES } from './js/songlist.js';
+    import { DIFF_NAMES, LOCALE_LABELS } from './js/songlist.js';
     import { el, clear } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -399,6 +425,7 @@
       }
 
       setThemeColor(prefill.themeColor);
+      renderTitleOptions(prefill.titleOptions);
 
       if (prefill.fromSonglist) {
         note.textContent = '已从 songlist 读取曲目信息，请核对后再提交。';
@@ -408,12 +435,60 @@
       }
     }
 
+    /**
+     * 多语言曲名选择。songlist 里有几种就列几种，点一下填进输入框；
+     * 输入框本身始终可以自由编辑，选项只是省去手打。
+     */
+    function renderTitleOptions(titles) {
+      const box = document.getElementById('title-options');
+      clear(box);
+
+      const entries = Object.entries(titles || {});
+      // 只有一种语言就没什么可挑的，输入框已经填好了
+      box.hidden = entries.length < 2;
+      if (entries.length < 2) return;
+
+      for (const [locale, value] of entries) {
+        const chip = el('button', {
+          type: 'button',
+          class: 'title-option',
+          dataset: { value },
+          title: value,
+        },
+          el('span', { class: 'locale' }, LOCALE_LABELS[locale] || locale),
+          el('span', { class: 'value' }, value),
+        );
+        chip.addEventListener('click', () => {
+          const input = document.getElementById('levelName');
+          input.value = value;
+          // 手动选过就算用户定了，切难度时不要再被覆盖
+          input.dataset.touched = '1';
+          paintTitleOptions();
+        });
+        box.append(chip);
+      }
+
+      paintTitleOptions();
+    }
+
+    /** 高亮与输入框当前内容一致的那个选项。 */
+    function paintTitleOptions() {
+      const box = document.getElementById('title-options');
+      const current = document.getElementById('levelName').value;
+      for (const chip of box.children) {
+        chip.classList.toggle('active', chip.dataset.value === current);
+      }
+    }
+
     // 用户手动改过的字段，切难度时不要被覆盖
     for (const id of ['levelName', 'composerName', 'baseBpm', 'previewStart', 'previewEnd']) {
       document.getElementById(id).addEventListener('input', event => {
         event.target.dataset.touched = '1';
       });
     }
+
+    // 只注册一次：renderTitleOptions 每次切难度都会重跑，在里面挂 listener 会累积
+    document.getElementById('levelName').addEventListener('input', paintTitleOptions);
 
     // ---------- 主题色 ----------
 

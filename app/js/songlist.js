@@ -29,14 +29,14 @@ export function isSonglistName(fileName) {
 }
 
 /**
- * @returns {{hasRead: boolean, titleEn: ?string, titleJa: ?string, artist: ?string,
- *   bpm: ?string, bpmBase: number, previewStart: number, previewEnd: number,
+ * @returns {{hasRead: boolean, titles: Object<string,string>, titleEn: ?string, titleJa: ?string,
+ *   artist: ?string, bpm: ?string, bpmBase: number, previewStart: number, previewEnd: number,
  *   difficulties: Array<?{chartDesigner: ?string, jacketDesigner: ?string, rating: number}>}}
  */
 export function parseSonglist(raw) {
   const empty = {
     hasRead: false,
-    titleEn: null, titleJa: null, artist: null,
+    titles: {}, titleEn: null, titleJa: null, artist: null,
     bpm: null, bpmBase: 0, previewStart: 0, previewEnd: 0,
     difficulties: new Array(DIFFICULTY_COUNT).fill(null),
   };
@@ -44,10 +44,13 @@ export function parseSonglist(raw) {
   if (!raw) return empty;
 
   try {
+    const titles = readLocalizedTitles(raw);
     const result = {
       ...empty,
-      titleEn: matchNested(raw, 'title_localized', 'en'),
-      titleJa: matchNested(raw, 'title_localized', 'ja'),
+      titles,
+      // 客户端只用 en，这两个留着是为了和它对得上
+      titleEn: titles.en ?? null,
+      titleJa: titles.ja ?? null,
       artist: matchString(raw, 'artist'),
       bpm: matchString(raw, 'bpm'),
       bpmBase: matchFloat(raw, 'bpm_base'),
@@ -61,6 +64,44 @@ export function parseSonglist(raw) {
   } catch {
     return empty;
   }
+}
+
+/** 常见语言的显示名。没列到的直接显示原始 key。 */
+export const LOCALE_LABELS = {
+  en: 'English',
+  ja: '日本語',
+  ko: '한국어',
+  'zh-Hans': '简体中文',
+  'zh-Hant': '繁體中文',
+  zh: '中文',
+};
+
+/** 展示顺序，其余按 songlist 里出现的顺序排在后面。 */
+const LOCALE_ORDER = ['en', 'ja', 'zh-Hans', 'zh-Hant', 'zh', 'ko'];
+
+/**
+ * 取出 title_localized 下的全部语言。
+ *
+ * 客户端只读 en（ChartLibraryPage 的 `slstReader.TitleEn ?? displayName`），
+ * 网页这边全都拿出来让用户挑——多语言曲名在这个曲库里很常见，
+ * 强制用 en 会让日文曲名的谱面显示成罗马音转写。
+ */
+function readLocalizedTitles(raw) {
+  const outer = /"title_localized"\s*:\s*\{[^}]*\}/.exec(raw);
+  if (!outer) return {};
+
+  const titles = {};
+  for (const m of outer[0].matchAll(/"([\w-]+)"\s*:\s*"([^"]*)"/g)) {
+    const [, locale, value] = m;
+    if (locale === 'title_localized') continue;
+    if (value.trim()) titles[locale] = value;
+  }
+
+  // 按偏好顺序重排，其余保持原序
+  const ordered = {};
+  for (const key of LOCALE_ORDER) if (key in titles) ordered[key] = titles[key];
+  for (const key of Object.keys(titles)) if (!(key in ordered)) ordered[key] = titles[key];
+  return ordered;
 }
 
 function readDifficulties(raw) {
@@ -116,9 +157,4 @@ function matchFloat(raw, key) {
 function matchInt(raw, key) {
   const m = new RegExp(`"${key}"\\s*:\\s*(-?\\d+)`).exec(raw);
   return m ? Number.parseInt(m[1], 10) : 0;
-}
-
-function matchNested(raw, outerKey, innerKey) {
-  const outer = new RegExp(`"${outerKey}"\\s*:\\s*\\{[^}]*\\}`).exec(raw);
-  return outer ? matchString(outer[0], innerKey) : null;
 }
