@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080f">
+  <title>登录 · Anoawa 社区</title>
+  <meta name="description" content="登录或注册 Anoawa 账号，浏览社区谱面、上传自己的作品。">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+  <style>
+    .auth-shell { display: grid; place-items: center; min-height: calc(100vh - 60px); }
+    .auth-head { margin-bottom: 26px; text-align: center; }
+    .auth-mark {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 16px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      color: #fff;
+      font-size: 23px;
+      font-weight: 800;
+      background: linear-gradient(145deg, var(--neon), #6d3bd8);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, .16) inset,
+                  0 14px 44px rgba(185, 103, 255, .5);
+    }
+    .auth-head h1 {
+      margin: 0 0 6px;
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: -.035em;
+    }
+    .auth-head p { margin: 0; color: var(--muted); font-size: 14.5px; }
+    .cooldown { color: var(--faint); font-size: 13px; }
+    .pw-meta { display: flex; justify-content: space-between; gap: 10px; }
+    .pw-meta .hint { margin: 7px 0 0; }
+    .done-actions { display: grid; gap: 10px; margin-top: 22px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <span class="brand-mark">A</span>
+        Anoawa <small>社区</small>
+      </a>
+      <nav class="top-actions">
+        <a class="top-link" href="../index.html">使用指南</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page page-narrow auth-shell">
+    <div style="width:100%">
+      <div class="auth-head">
+        <div class="auth-mark" aria-hidden="true">A</div>
+        <h1>接入 <span class="gradient-text">社区</span></h1>
+        <p>浏览、试听与上传社区谱面</p>
+      </div>
+
+      <div class="card">
+        <!-- 全局提示（会话过期等） -->
+        <div class="callout warning" id="banner" hidden></div>
+
+        <div class="tabs" role="tablist" aria-label="账号操作">
+          <button class="tab" role="tab" id="tab-login"    aria-controls="panel-login"    aria-selected="true">登录</button>
+          <button class="tab" role="tab" id="tab-register" aria-controls="panel-register" aria-selected="false">注册</button>
+          <button class="tab" role="tab" id="tab-reset"    aria-controls="panel-reset"    aria-selected="false">改密码</button>
+        </div>
+
+        <!-- ---------- 登录 ---------- -->
+        <section class="tabpanel" role="tabpanel" id="panel-login" aria-labelledby="tab-login">
+          <form id="form-login" novalidate>
+            <div class="field">
+              <label for="login-email">邮箱</label>
+              <input class="input" type="email" id="login-email" name="email"
+                     autocomplete="email" required placeholder="you@example.com">
+            </div>
+            <div class="field">
+              <label for="login-password">密码</label>
+              <input class="input" type="password" id="login-password" name="password"
+                     autocomplete="current-password" required placeholder="初始密码或你改过的密码">
+            </div>
+            <button class="button primary block" type="submit" id="login-submit">登录</button>
+            <div class="callout error" id="login-error" hidden></div>
+          </form>
+          <p class="form-foot">还没有账号？<a href="#" data-goto="register">注册一个</a></p>
+        </section>
+
+        <!-- ---------- 注册 ---------- -->
+        <section class="tabpanel" role="tabpanel" id="panel-register" aria-labelledby="tab-register" hidden>
+          <form id="form-register" novalidate>
+            <div class="field">
+              <label for="register-email">邮箱</label>
+              <input class="input" type="email" id="register-email" name="email"
+                     autocomplete="email" required placeholder="you@example.com">
+              <p class="hint">后端会生成一个随机初始密码发到这个邮箱，注册过程中你不用自己设密码。</p>
+            </div>
+            <button class="button primary block" type="submit" id="register-submit">发送初始密码</button>
+            <div class="callout warning">
+              <strong>收到邮件后请在 30 分钟内登录一次。</strong>
+              <p>首次登录才算完成注册；超时未登录的账号会被自动清理，需要重新走一遍。</p>
+            </div>
+            <div class="callout error" id="register-error" hidden></div>
+            <div class="callout success" id="register-done" hidden></div>
+          </form>
+        </section>
+
+        <!-- ---------- 改密码 ---------- -->
+        <section class="tabpanel" role="tabpanel" id="panel-reset" aria-labelledby="tab-reset" hidden>
+          <form id="form-reset" novalidate>
+            <div class="field">
+              <label for="reset-email">邮箱</label>
+              <div class="input-row">
+                <input class="input" type="email" id="reset-email" name="email"
+                       autocomplete="email" required placeholder="you@example.com">
+                <button class="button" type="button" id="send-code">发送验证码</button>
+              </div>
+              <p class="hint">验证码 10 分钟内有效。</p>
+            </div>
+            <div class="field">
+              <label for="reset-code">验证码</label>
+              <input class="input code" type="text" id="reset-code" name="code"
+                     inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                     required placeholder="······">
+            </div>
+            <div class="field">
+              <label for="reset-password">新密码</label>
+              <input class="input" type="password" id="reset-password" name="newPassword"
+                     autocomplete="new-password" minlength="8" required placeholder="至少 8 个字符">
+              <div class="pw-meta">
+                <p class="hint">至少 8 个字符。</p>
+                <p class="hint cooldown" id="pw-count"></p>
+              </div>
+            </div>
+            <button class="button primary block" type="submit" id="reset-submit">修改密码</button>
+            <div class="callout warning">
+              改密码会让该账号<strong>此前登录的所有设备一起掉线</strong>，包括游戏客户端——这也是账号疑似被盗时的自助手段。
+            </div>
+            <div class="callout error" id="reset-error" hidden></div>
+            <div class="callout success" id="reset-done" hidden></div>
+          </form>
+        </section>
+
+        <!-- ---------- 首次登录成功后的引导 ---------- -->
+        <section id="panel-welcome" hidden>
+          <div class="callout success">
+            <strong>注册完成，欢迎加入。</strong>
+            <p>你现在用的还是系统生成的初始密码，建议立刻换成自己的。</p>
+          </div>
+          <div class="done-actions">
+            <button class="button primary block" type="button" id="go-change">立即修改密码</button>
+            <button class="button ghost block" type="button" id="go-app">先进去看看</button>
+          </div>
+        </section>
+      </div>
+
+      <p class="form-foot">
+        遇到问题？先看 <a href="../index.html#faq">常见问题</a>
+      </p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { describeError, isLoggedIn } from './js/api.js';
+    import {
+      register, login, requestVerificationCode, changePassword,
+      markPendingFirstLogin, getPendingFirstLogin, clearPendingFirstLogin,
+      MIN_PASSWORD_LENGTH,
+    } from './js/auth.js';
+
+    const params = new URLSearchParams(location.search);
+    const nextPage = sanitizeNext(params.get('next'));
+
+    // 已经登录就别停在登录页了
+    if (isLoggedIn() && !params.has('expired')) location.replace(nextPage);
+
+    // ---------- 标签页 ----------
+
+    const tabs = [...document.querySelectorAll('.tab')];
+    const panels = new Map(tabs.map(tab => [tab, document.getElementById(tab.getAttribute('aria-controls'))]));
+
+    function selectTab(name) {
+      const target = document.getElementById(`tab-${name}`);
+      if (!target) return;
+      document.getElementById('panel-welcome').hidden = true;
+      for (const tab of tabs) {
+        const on = tab === target;
+        tab.setAttribute('aria-selected', String(on));
+        panels.get(tab).hidden = !on;
+      }
+      document.querySelector('.tabs').hidden = false;
+    }
+
+    tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab.id.replace('tab-', ''))));
+    document.querySelectorAll('[data-goto]').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        selectTab(link.dataset.goto);
+      });
+    });
+
+    if (params.has('expired')) {
+      show(document.getElementById('banner'), '登录已失效，请重新登录。');
+    }
+
+    // ---------- 登录 ----------
+
+    const loginForm = document.getElementById('form-login');
+    const loginError = document.getElementById('login-error');
+
+    loginForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      hide(loginError);
+
+      const email = loginForm.email.value.trim();
+      const password = loginForm.password.value;
+      if (!email || !password) return show(loginError, '请填写邮箱和密码');
+
+      await withBusy(document.getElementById('login-submit'), '登录中…', async () => {
+        try {
+          await login(email, password);
+        } catch (error) {
+          show(loginError, describeError(error));
+          return;
+        }
+
+        // 刚注册完的那次登录：引导改掉系统发的初始密码
+        if (getPendingFirstLogin() === email.toLowerCase()) {
+          clearPendingFirstLogin();
+          showWelcome(email);
+          return;
+        }
+        location.replace(nextPage);
+      });
+    });
+
+    function showWelcome(email) {
+      document.querySelector('.tabs').hidden = true;
+      for (const panel of panels.values()) panel.hidden = true;
+      document.getElementById('panel-welcome').hidden = false;
+
+      document.getElementById('go-app').onclick = () => location.replace(nextPage);
+      document.getElementById('go-change').onclick = () => {
+        selectTab('reset');
+        document.getElementById('reset-email').value = email;
+        sendCode();
+      };
+    }
+
+    // ---------- 注册 ----------
+
+    const registerForm = document.getElementById('form-register');
+    const registerError = document.getElementById('register-error');
+    const registerDone = document.getElementById('register-done');
+
+    registerForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      hide(registerError);
+      hide(registerDone);
+
+      const email = registerForm.email.value.trim();
+      if (!email) return show(registerError, '请填写邮箱');
+
+      await withBusy(document.getElementById('register-submit'), '发送中…', async () => {
+        try {
+          const message = await register(email);
+          markPendingFirstLogin(email);
+          registerDone.innerHTML =
+            `<strong>${escapeHtml(message)}</strong>` +
+            `<p>已经把邮箱填到登录表单了，收到信后回来登录即可。</p>`;
+          show(registerDone);
+          document.getElementById('login-email').value = email;
+        } catch (error) {
+          show(registerError, describeError(error));
+        }
+      });
+    });
+
+    // ---------- 改密码 ----------
+
+    const resetForm = document.getElementById('form-reset');
+    const resetError = document.getElementById('reset-error');
+    const resetDone = document.getElementById('reset-done');
+    const sendCodeButton = document.getElementById('send-code');
+
+    sendCodeButton.addEventListener('click', sendCode);
+
+    async function sendCode() {
+      hide(resetError);
+      const email = resetForm.email.value.trim();
+      if (!email) {
+        show(resetError, '请先填写邮箱');
+        resetForm.email.focus();
+        return;
+      }
+
+      await withBusy(sendCodeButton, '发送中…', async () => {
+        try {
+          await requestVerificationCode(email);
+          startCooldown(sendCodeButton, 60);
+          document.getElementById('reset-code').focus();
+        } catch (error) {
+          show(resetError, describeError(error));
+        }
+      });
+    }
+
+    const passwordInput = document.getElementById('reset-password');
+    const passwordCount = document.getElementById('pw-count');
+    passwordInput.addEventListener('input', () => {
+      const length = passwordInput.value.length;
+      passwordCount.textContent = length === 0 ? '' : `${length} / ${MIN_PASSWORD_LENGTH}`;
+      passwordCount.style.color = length && length < MIN_PASSWORD_LENGTH ? 'var(--rose)' : '';
+    });
+
+    resetForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      hide(resetError);
+      hide(resetDone);
+
+      const email = resetForm.email.value.trim();
+      const code = resetForm.code.value.trim();
+      const newPassword = resetForm.newPassword.value;
+
+      if (!email || !code) return show(resetError, '请填写邮箱和验证码');
+      if (newPassword.length < MIN_PASSWORD_LENGTH) {
+        return show(resetError, `新密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
+      }
+
+      await withBusy(document.getElementById('reset-submit'), '提交中…', async () => {
+        try {
+          await changePassword(email, code, newPassword);
+          resetForm.reset();
+          passwordCount.textContent = '';
+          resetDone.innerHTML =
+            '<strong>密码已修改。</strong><p>请用新密码重新登录。</p>';
+          show(resetDone);
+          document.getElementById('login-email').value = email;
+          setTimeout(() => selectTab('login'), 1200);
+        } catch (error) {
+          show(resetError, describeError(error));
+        }
+      });
+    });
+
+    // ---------- 小工具 ----------
+
+    function show(element, message) {
+      if (message !== undefined) element.textContent = message;
+      element.hidden = false;
+    }
+
+    function hide(element) { element.hidden = true; }
+
+    /** 提交期间禁用按钮并显示转圈，结束后还原原本的文字。 */
+    async function withBusy(button, busyText, action) {
+      const original = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = `<span class="spinner"></span>${busyText}`;
+      try {
+        await action();
+      } finally {
+        button.disabled = false;
+        button.innerHTML = original;
+      }
+    }
+
+    /** 验证码按钮倒计时，避免用户连点把每分钟 5 次的限流打满。 */
+    function startCooldown(button, seconds) {
+      let left = seconds;
+      button.disabled = true;
+      const label = () => { button.textContent = `${left} 秒后重发`; };
+      label();
+      const timer = setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+          clearInterval(timer);
+          button.disabled = false;
+          button.textContent = '发送验证码';
+        } else {
+          label();
+        }
+      }, 1000);
+    }
+
+    /** next 只允许站内相对页面，挡掉 //evil.com 这类开放重定向。 */
+    function sanitizeNext(value) {
+      const fallback = 'index.html';
+      if (!value) return fallback;
+      const decoded = decodeURIComponent(value);
+      if (!/^[\w.-]+\.html(\?[\w=&.%-]*)?$/.test(decoded)) return fallback;
+      if (decoded.startsWith('login.html')) return fallback;
+      return decoded;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, ch => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+      ));
+    }
+  </script>
+</body>
+</html>

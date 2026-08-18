@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080f">
+  <title>谱面库 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+  <style>
+    .profile-grid { display: grid; gap: 1px; margin-top: 20px; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; background: var(--hairline); }
+    .profile-row { display: flex; gap: 16px; padding: 13px 16px; background: rgba(10, 10, 22, .72); font-size: 14.5px; }
+    .profile-row dt { flex: 0 0 96px; margin: 0; color: var(--faint); }
+    .profile-row dd { margin: 0; color: var(--text); word-break: break-all; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+    .badge.admin { color: #0b0b18; background: var(--mint); }
+    .skeleton { height: 15px; border-radius: 4px; background: linear-gradient(90deg, var(--surface), var(--surface-hover), var(--surface)); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <span class="brand-mark">A</span>
+        Anoawa <small>社区</small>
+      </a>
+      <nav class="top-actions">
+        <a class="top-link current" href="index.html">谱面库</a>
+        <a class="top-link" href="../index.html">使用指南</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <h1>社区<span class="gradient-text">谱面库</span></h1>
+      <p id="greeting"><span class="skeleton" style="display:inline-block;width:180px"></span></p>
+    </div>
+
+    <div class="card">
+      <div class="callout warning">
+        <strong>谱面浏览还在做。</strong>
+        <p>账号这一层已经通了——下面的资料是刚从后端取回来的，说明带 token 的请求链路没问题。</p>
+      </div>
+
+      <dl class="profile-grid" id="profile"></dl>
+      <div class="callout error" id="error" hidden></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout } from './js/api.js';
+    import { fetchProfile } from './js/auth.js';
+
+    if (requireLogin()) {
+      document.getElementById('logout').addEventListener('click', logout);
+      load();
+    }
+
+    async function load() {
+      const list = document.getElementById('profile');
+      try {
+        const profile = await fetchProfile();
+
+        document.getElementById('greeting').textContent =
+          `欢迎回来，${profile.nickname}`;
+
+        const rows = [
+          ['用户 ID', String(profile.id), true],
+          ['昵称', profile.nickname, false],
+          ['邮箱', profile.email, false],
+          ['Bilibili', profile.bilibiliUid || '未绑定', false],
+        ];
+
+        list.innerHTML = '';
+        for (const [label, value, mono] of rows) {
+          list.append(row(label, value, mono));
+        }
+        if (profile.isAdmin) {
+          const dd = document.createElement('dd');
+          dd.innerHTML = '<span class="badge admin">管理员</span>';
+          list.append(row('权限', null, false, dd));
+        }
+      } catch (error) {
+        // 401 已经由 api.js 统一处理成跳转了，走到这里的是别的错误
+        const box = document.getElementById('error');
+        box.textContent = describeError(error);
+        box.hidden = false;
+        document.getElementById('greeting').textContent = '资料加载失败';
+      }
+    }
+
+    function row(label, value, mono, customDd) {
+      const wrap = document.createElement('div');
+      wrap.className = 'profile-row';
+
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+
+      const dd = customDd ?? document.createElement('dd');
+      if (!customDd) {
+        dd.textContent = value;
+        if (mono) dd.className = 'num';
+      }
+
+      wrap.append(dt, dd);
+      return wrap;
+    }
+  </script>
+</body>
+</html>
