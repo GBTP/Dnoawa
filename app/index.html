@@ -54,7 +54,7 @@
 
   <script type="module">
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
-    import { listLevels, SORT_OPTIONS, STATUS_LABELS } from './js/levels.js';
+    import { listLevels, SORT_OPTIONS, STATUS_LABELS, PAGE_SIZE } from './js/levels.js';
     import {
       el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox,
     } from './js/ui.js';
@@ -67,7 +67,9 @@
     document.getElementById('greeting').textContent =
       nickname ? `欢迎回来，${nickname}` : '浏览社区上传的谱面';
 
-    const PAGE_SIZE = 24;
+    // 与客户端对齐：ChartLibraryPage.cs:504 显式传 20，SDK 各方法默认值也是 20，
+    // 后端 LevelQueryParams.PageSize 的默认同样是 20。常量定义在 levels.js，
+    // 这里只引用，避免两处各写一个值以后漂开。
 
     const form = document.getElementById('search').form;
     const searchInput = document.getElementById('search');
@@ -112,11 +114,15 @@
       load({ push: false });
     });
 
-    load({ push: false });
-
     // ---------- 加载 ----------
 
+    // 必须声明在首次 load() 之前：let 有暂时性死区，而 load() 第一行就读它。
+    // 放在下面的话进页面首次加载会抛 ReferenceError，又因为 load 是 async，
+    // 错误变成未处理的 rejection，页面上一片空白、控制台之外毫无提示——
+    // 而点搜索时模块顶层已执行完，反而正常，症状会非常费解。
     let requestSeq = 0;
+
+    load({ push: false });
 
     async function load({ push = true } = {}) {
       const seq = ++requestSeq;

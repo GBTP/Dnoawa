@@ -22,11 +22,14 @@ export const SORT_OPTIONS = [
   { value: 'name', label: '名称' },
 ];
 
+/** 与客户端和后端默认一致的每页条数。 */
+export const PAGE_SIZE = 20;
+
 /**
  * 谱面列表。搜索会匹配曲名/曲师/谱师/画师/标签。
  * @returns {Promise<{items: object[], totalCount: number, page: number, pageSize: number}>}
  */
-export function listLevels({ search = '', page = 1, pageSize = 24, sortBy = 'created', sortOrder = 'desc' } = {}) {
+export function listLevels({ search = '', page = 1, pageSize = PAGE_SIZE, sortBy = 'created', sortOrder = 'desc' } = {}) {
   const query = new URLSearchParams({
     page: String(page),
     pageSize: String(Math.min(pageSize, MAX_PAGE_SIZE)),
@@ -47,7 +50,7 @@ export function getLevel(id) {
 }
 
 /** 我上传的谱面（含审核中的）。 */
-export function listMyLevels({ page = 1, pageSize = 24 } = {}) {
+export function listMyLevels({ page = 1, pageSize = PAGE_SIZE } = {}) {
   return get(`/api/levels/mine?page=${page}&pageSize=${Math.min(pageSize, MAX_PAGE_SIZE)}`);
 }
 
