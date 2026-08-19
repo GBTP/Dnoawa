@@ -364,10 +364,19 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 
 /* ---------- 网格 ---------- */
 
+/* 列数锁死在每页条数（20）的因数上——2 / 4 / 5——这样最后一行总是正好铺满。
+   用 auto-fill 的话列数随视口自由浮动，一旦落到 3、6、7 列，末行必然缺口。
+   代价是卡片宽度随视口变化，但那本来就是响应式该有的样子。 */
 .level-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 26px 20px;
+}
+@media (max-width: 1023px) {
+  .level-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 18px; }
+}
+@media (max-width: 679px) {
+  .level-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 14px; }
 }
 
 /* 卡片没有边框没有底色没有阴影：曲绘本身就是卡片，文字挂在它下面。
@@ -727,7 +736,6 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 @media (max-width: 640px) {
   :root { --gutter: 16px; }
   .page { padding-top: 28px; padding-bottom: 64px; }
-  .level-grid { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 20px 14px; }
   .brand small { display: none; }
   .card { padding: 20px 16px; }
 }

@@ -216,7 +216,8 @@
 
     function renderSkeletons() {
       clear(grid);
-      for (let i = 0; i < 8; i += 1) {
+      // 数量与每页条数一致，加载完成时网格形状不会跳
+      for (let i = 0; i < PAGE_SIZE; i += 1) {
         grid.append(el('div', { class: 'skeleton skeleton-card' }));
       }
     }
