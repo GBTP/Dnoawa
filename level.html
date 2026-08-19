@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#08080f">
+  <meta name="theme-color" content="#0b0b0d">
   <title>谱面详情 · Anoawa 社区</title>
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="app.css">
@@ -32,6 +32,7 @@
   <script type="module">
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
     import { getLevel, toggleLike, getLeaderboard, COMBO_LABELS, STATUS_LABELS } from './js/levels.js';
+    import { difficultyTier } from './js/songlist.js';
     import {
       el, clear, coverImage, applyTheme, formatCount, formatDuration, formatDate,
       displayName, showBox,
@@ -85,7 +86,11 @@
 
       const cover = coverImage(level, { alt: `${level.levelName} 封面` });
       if (level.displayDifficulty) {
-        cover.append(el('span', { class: 'diff-badge' }, level.displayDifficulty));
+        const tier = difficultyTier(level.displayDifficulty);
+        cover.append(el('span', {
+          class: 'diff-badge',
+          dataset: tier >= 0 ? { tier: String(tier) } : {},
+        }, level.displayDifficulty));
       }
 
       const info = el('div', { class: 'hero-info' },

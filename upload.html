@@ -3,92 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#08080f">
+  <meta name="theme-color" content="#0b0b0d">
   <title>上传谱面 · Anoawa 社区</title>
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="app.css">
-  <style>
-    .dropzone {
-      display: grid;
-      place-items: center;
-      gap: 8px;
-      padding: 46px 24px;
-      border: 2px dashed var(--hairline-strong);
-      border-radius: var(--radius-lg);
-      background: rgba(0, 0, 0, .26);
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .18s var(--ease), background .18s var(--ease);
-    }
-    .dropzone:hover, .dropzone.over { border-color: var(--neon); background: rgba(185, 103, 255, .09); }
-    .dropzone h3 { margin: 0; font-size: 17px; }
-    .dropzone p { margin: 0; color: var(--muted); font-size: 14px; }
-    .dropzone .or { color: var(--faint); font-size: 13px; }
-
-    .claims { display: grid; gap: 1px; margin-top: 20px; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; background: var(--hairline); }
-    .claim { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(10, 10, 22, .74); font-size: 14px; }
-    .claim .role { flex: 0 0 84px; color: var(--faint); font-size: 12.5px; }
-    .claim .file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .claim .note { color: var(--faint); font-size: 12.5px; }
-    .claim.missing .file { color: var(--rose); }
-    .claim.rejected .note { color: var(--gold); }
-
-    .difficulties { display: flex; flex-wrap: wrap; gap: 8px; }
-    .diff-pick {
-      position: relative;
-      padding: 9px 16px;
-      border: 1px solid var(--hairline-strong);
-      border-radius: var(--radius);
-      background: rgba(0, 0, 0, .3);
-      font-size: 14px;
-      font-weight: 650;
-      cursor: pointer;
-    }
-    .diff-pick input { position: absolute; opacity: 0; pointer-events: none; }
-    .diff-pick:has(input:checked) {
-      border-color: transparent;
-      color: #fff;
-      background: linear-gradient(135deg, var(--neon), #7b3fe4);
-      box-shadow: 0 6px 20px rgba(185, 103, 255, .3);
-    }
-    .diff-pick small { display: block; color: var(--faint); font-weight: 500; font-size: 11.5px; }
-    .diff-pick:has(input:checked) small { color: rgba(255,255,255,.75); }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
-    @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
-
-    .progress { height: 8px; margin-top: 12px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
-    .progress span { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--neon), var(--pink)); transition: width .25s var(--ease); }
-    .stage { margin-top: 10px; color: var(--muted); font-size: 14px; }
-    .swatch { width: 46px; padding: 0; border: 1px solid var(--hairline-strong); border-radius: var(--radius); background: none; }
-    .check { display: flex; gap: 9px; align-items: flex-start; font-size: 14.5px; cursor: pointer; }
-    .check input { margin-top: 4px; }
-
-    /* songlist 里有几种语言的曲名就列几个，点一下填进输入框；输入框本身照样能改 */
-    .title-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .title-option {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 7px;
-      max-width: 100%;
-      padding: 5px 11px;
-      border: 1px solid var(--hairline-strong);
-      border-radius: 999px;
-      background: rgba(0, 0, 0, .3);
-      color: var(--muted);
-      font-size: 13px;
-      cursor: pointer;
-      transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
-    }
-    .title-option:hover { color: var(--text); border-color: var(--neon); }
-    .title-option.active {
-      color: #fff;
-      border-color: transparent;
-      background: linear-gradient(135deg, var(--neon), #7b3fe4);
-    }
-    .title-option .locale { flex: 0 0 auto; font-size: 11px; opacity: .72; }
-    .title-option .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  </style>
 </head>
 <body>
   <header class="topbar">
@@ -107,7 +25,7 @@
 
   <main class="page" style="max-width:760px">
     <div class="page-head">
-      <h1>上传<span class="gradient-text">谱面</span></h1>
+      <h1>上传谱面</h1>
       <p>把谱面文件夹整个拖进来，各文件会按客户端的规则自动认领。</p>
     </div>
 
@@ -230,7 +148,7 @@
     import {
       scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
     } from './js/upload.js';
-    import { DIFF_NAMES, LOCALE_LABELS } from './js/songlist.js';
+    import { DIFF_NAMES, DIFF_COLORS, LOCALE_LABELS } from './js/songlist.js';
     import { decodeAudio } from './js/media.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
     import { el, clear } from './js/ui.js';
@@ -454,8 +372,11 @@
           difficultyIndex = item.index;
           await applyPrefill();
         });
-        box.append(el('label', { class: 'diff-pick' }, input, DIFF_NAMES[item.index],
-          el('small', {}, item.file.name)));
+        // 选中态用该难度档自己的颜色，和谱面库里的徽章是同一套
+        const pick = el('label', { class: 'diff-pick' }, input, DIFF_NAMES[item.index],
+          el('small', {}, item.file.name));
+        pick.style.setProperty('--tier', DIFF_COLORS[item.index]);
+        box.append(pick);
       }
     }
 

@@ -158,3 +158,16 @@ function matchInt(raw, key) {
   const m = new RegExp(`"${key}"\\s*:\\s*(-?\\d+)`).exec(raw);
   return m ? Number.parseInt(m[1], 10) : 0;
 }
+
+/**
+ * 从显示难度里认出难度档，认不出返回 -1。
+ *
+ * DisplayDifficulty 在后端是自由字符串，但客户端导入和网页上传都按
+ * "档位名 + rating" 拼（如 "Future 10"），所以取首词就能对上档位，
+ * 进而拿到该档的配色。认不出时调用方回落到谱面自己的 themeColor。
+ */
+export function difficultyTier(displayDifficulty) {
+  if (typeof displayDifficulty !== 'string') return -1;
+  const head = displayDifficulty.trim().split(/\s+/)[0]?.toLowerCase();
+  return DIFF_NAMES.findIndex(name => name.toLowerCase() === head);
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#08080f">
+  <meta name="theme-color" content="#0b0b0d">
   <title>谱面库 · Anoawa 社区</title>
   <meta name="robots" content="noindex">
   <link rel="stylesheet" href="app.css">
@@ -26,7 +26,7 @@
 
   <main class="page">
     <div class="page-head">
-      <h1>社区<span class="gradient-text">谱面库</span></h1>
+      <h1>谱面库</h1>
       <p id="greeting"></p>
     </div>
 
@@ -55,6 +55,7 @@
   <script type="module">
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
     import { listLevels, SORT_OPTIONS, STATUS_LABELS, PAGE_SIZE } from './js/levels.js';
+    import { difficultyTier } from './js/songlist.js';
     import {
       el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox,
     } from './js/ui.js';
@@ -181,7 +182,13 @@
 
       const cover = coverImage(level, { alt: `${level.levelName} 封面` });
       if (level.displayDifficulty) {
-        cover.append(el('span', { class: 'diff-badge' }, level.displayDifficulty));
+        // 认得出难度档就用该档的固定色（与客户端 DiffColors 同一套），
+        // 认不出时回落到谱面自己的 themeColor
+        const tier = difficultyTier(level.displayDifficulty);
+        cover.append(el('span', {
+          class: 'diff-badge',
+          dataset: tier >= 0 ? { tier: String(tier) } : {},
+        }, level.displayDifficulty));
       }
       // 非 Approved 的只可能是自己上传的——后端不会把别人审核中的谱面发过来
       if (level.status && level.status !== 'Approved') {
@@ -192,7 +199,8 @@
 
       card.append(
         cover,
-        el('div', {},
+        el('div', { class: 'level-accent' }),
+        el('div', { class: 'level-meta' },
           el('h3', { class: 'level-title' }, level.levelName),
           el('p', { class: 'level-sub' }, level.composerName),
           el('p', { class: 'level-sub' }, `谱面 ${level.charterName}`),
