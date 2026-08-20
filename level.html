@@ -166,16 +166,49 @@
         avatarImage(anonymized ? null : level.uploaderAvatarUrl, name, { size: 96, className: 'avatar avatar-sm' }),
         el('div', {},
           el('div', { class: 'uploader-name' }, name),
-          el('div', { class: 'uploader-time' }, `上传于 ${formatDate(level.createdAtUtc)}`),
+          el('div', { class: 'uploader-time' },
+            (level.collaborators?.length ?? 0) > 0
+              ? '所有者'
+              : `上传于 ${formatDate(level.createdAtUtc)}`),
         ),
       ];
 
-      return el('div', { class: 'uploader' },
-        el('span', { class: 'label' }, '上传者'),
+      const cards = [
         anonymized
           ? el('div', { class: 'uploader-card is-anonymized' }, inner)
           : el('a', { class: 'uploader-card', href: `user.html?id=${level.uploaderId}` }, inner),
+      ];
+
+      // 合作者只在详情里有（列表和热榜恒为空数组），所以只有这一处渲染
+      for (const person of level.collaborators ?? []) {
+        cards.push(collaboratorCard(person));
+      }
+
+      return el('div', { class: 'uploader' },
+        el('span', { class: 'label' }, cards.length > 1 ? '制作者' : '上传者'),
+        el('div', { class: 'credit-list' }, cards),
       );
+    }
+
+    /**
+     * 一个合作挂名。**纯署名，没有编辑权限**——所有权仍然只在上传者手上。
+     * 视觉上和上传者用同一套卡片，靠 role 标签区分。
+     */
+    function collaboratorCard(person) {
+      const anonymized = Boolean(person.isAnonymized);
+      const name = displayName(person.nickname, anonymized);
+
+      const inner = [
+        avatarImage(anonymized ? null : person.avatarUrl, name, { size: 96, className: 'avatar avatar-sm' }),
+        el('div', {},
+          el('div', { class: 'uploader-name' }, name),
+          el('div', { class: 'uploader-time' }, person.role || '合作者'),
+        ),
+      ];
+
+      return anonymized
+        ? el('div', { class: 'uploader-card is-anonymized' }, inner)
+        : el('a', { class: 'uploader-card', href: `user.html?id=${person.profileId}` }, inner);
     }
 
     function tagRow(tags) {

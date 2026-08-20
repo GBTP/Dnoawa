@@ -32,9 +32,12 @@
     import {
       getLevel, updateLevel, deleteLevel,
       createLevelTransfer, revokeLevelTransfer,
+      inviteCollaborator, updateCollaboratorRole, removeCollaborator,
     } from './js/levels.js';
     import { getMyProfile } from './js/users.js';
-    import { el, clear, showBox, hideBox, commandBlock, formatDate } from './js/ui.js';
+    import {
+      el, clear, showBox, hideBox, commandBlock, formatDate, displayName, avatarImage,
+    } from './js/ui.js';
     import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
     import { decodeAudio, defaultPreviewRange } from './js/media.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
@@ -201,6 +204,7 @@
 
       content.append(form);
       content.append(resourceSection(level, isAdmin));
+      content.append(collaboratorSection(level));
       content.append(transferSection(level));
       content.append(dangerZone(level));
     }
@@ -326,6 +330,122 @@
       if (bytes < 1024) return `${bytes} B`;
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
       return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    /**
+     * 合作者挂名。**纯署名，没有编辑权限**——这一点必须写在界面上，
+     * 否则会有人以为挂名了就能一起改谱面。要真的交出控制权得用下面的转让。
+     *
+     * 邀请按身份 id（UID）定位对方，需要对方确认后才会出现在署名里。
+     */
+    function collaboratorSection(level) {
+      const box = el('div', { class: 'collab-section' },
+        el('h2', { class: 'section-title' }, '合作者'));
+      const body = el('div', {});
+      box.append(body);
+
+      render(level.collaborators ?? []);
+
+      function render(list) {
+        clear(body);
+
+        body.append(el('p', { class: 'hint', style: 'margin-top:0' },
+          '给参与制作的人挂名，会显示在谱面详情里。挂名只是署名，' +
+          '不会给对方编辑、替换资源或删除的权限。'));
+
+        if (list.length) {
+          const rows = el('div', { class: 'collab-list' });
+          for (const person of list) rows.append(collabRow(person));
+          body.append(rows);
+        }
+
+        body.append(inviteForm());
+      }
+
+      function collabRow(person) {
+        const row = el('div', { class: 'collab-row' });
+        const status = el('div', { class: 'callout', hidden: true });
+
+        const role = el('input', { class: 'input', value: person.role || '', maxlength: '24' });
+        const save = el('button', { class: 'button small', type: 'button' }, '改分工');
+        const remove = el('button', { class: 'button small ghost', type: 'button' }, '移除');
+
+        save.addEventListener('click', async () => {
+          if (!role.value.trim()) return;
+          save.disabled = true;
+          try {
+            await updateCollaboratorRole(level.id, person.profileId, role.value);
+            showBox(status, '已更新。', 'success');
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+          } finally {
+            save.disabled = false;
+          }
+        });
+
+        remove.addEventListener('click', async () => {
+          if (!window.confirm(`移除「${displayName(person.nickname, person.isAnonymized)}」的挂名？`)) return;
+          remove.disabled = true;
+          try {
+            await removeCollaborator(level.id, person.profileId);
+            row.remove();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            remove.disabled = false;
+          }
+        });
+
+        row.append(
+          el('div', { class: 'collab-who' },
+            avatarImage(person.isAnonymized ? null : person.avatarUrl,
+              displayName(person.nickname, person.isAnonymized),
+              { size: 96, className: 'avatar avatar-sm' }),
+            el('div', {},
+              el('strong', {}, displayName(person.nickname, person.isAnonymized)),
+              el('span', { class: 'num' }, `UID ${person.profileId}`)),
+          ),
+          el('div', { class: 'collab-actions' }, role, save, remove),
+          status,
+        );
+        return row;
+      }
+
+      function inviteForm() {
+        const uid = el('input', { class: 'input', type: 'number', min: '1', placeholder: '对方的 UID' });
+        const role = el('input', { class: 'input', maxlength: '24', placeholder: '分工，如 曲绘 / BGA / 测试' });
+        const submit = el('button', { class: 'button', type: 'button' }, '发出邀请');
+        const status = el('div', { class: 'callout', hidden: true });
+
+        submit.addEventListener('click', async () => {
+          hideBox(status);
+          if (!uid.value.trim() || !role.value.trim()) {
+            return showBox(status, '请填写对方 UID 和分工', 'error');
+          }
+          submit.disabled = true;
+          submit.textContent = '发送中…';
+          try {
+            await inviteCollaborator(level.id, uid.value, role.value);
+            uid.value = '';
+            role.value = '';
+            showBox(status, '邀请已发出，对方确认后才会出现在署名里。', 'success');
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+          } finally {
+            submit.disabled = false;
+            submit.textContent = '发出邀请';
+          }
+        });
+
+        return el('div', { class: 'collab-invite' },
+          el('span', { class: 'label' }, '邀请合作者'),
+          el('p', { class: 'hint' },
+            '填对方的 UID——在对方的个人空间页面能看到。邀请发出后要等他自己确认。'),
+          el('div', { class: 'collab-invite-row' }, uid, role, submit),
+          status,
+        );
+      }
+
+      return box;
     }
 
     /**

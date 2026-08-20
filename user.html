@@ -37,11 +37,13 @@
       deleteProfile, createTransfer, revokeTransfer, claimTransfer,
     } from './js/profiles.js';
     import {
+      getPendingCollaborations, acceptCollaboration, removeCollaborator, COMBO_LABELS,
+    } from './js/levels.js';
+    import {
       getMyProfile, getPublicUser, updateProfile,
       getMyLevels, getUserLevels, getRecentPlays,
     } from './js/users.js';
     import { levelCard } from './js/level-card.js';
-    import { COMBO_LABELS } from './js/levels.js';
     import { uploadFile } from './js/tus.js';
     import { PRESET, processImage } from './js/media.js';
     import {
@@ -128,6 +130,7 @@
       if (isSelf) header.append(editPanel(profile));
       content.append(header);
       if (isSelf) content.append(profilesPanel(profile));
+      if (isSelf) loadPendingCollaborations();
 
       content.append(
         el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
@@ -691,6 +694,87 @@
 
       box.append(el('h2', { class: 'section-title' }, '危险操作'), toggle, panel);
       return box;
+    }
+
+    /**
+     * 我收到的挂名邀请。放在谱面区上方——它需要用户做决定，不该埋在下面。
+     * 没有邀请时整块不渲染，不打扰。
+     */
+    async function loadPendingCollaborations() {
+      let result;
+      try {
+        result = await getPendingCollaborations();
+      } catch {
+        return;   // 拿不到就当没有，不打扰
+      }
+
+      const items = result?.items ?? result ?? [];
+      if (!items.length) return;
+
+      const box = el('section', { class: 'pending-collabs' },
+        el('h2', { class: 'section-title' }, '待确认的挂名邀请'));
+
+      for (const invite of items) {
+        const row = el('div', { class: 'pending-row' });
+        const status = el('div', { class: 'callout', hidden: true });
+
+        const accept = el('button', { class: 'button small primary', type: 'button' }, '接受');
+        const decline = el('button', { class: 'button small ghost', type: 'button' }, '拒绝');
+
+        accept.addEventListener('click', async () => {
+          accept.disabled = true;
+          decline.disabled = true;
+          try {
+            await acceptCollaboration(invite.levelId);
+            row.replaceChildren(el('p', { class: 'hint' },
+              `已接受，你现在是「${invite.levelName}」的合作者（${invite.role}）。`));
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            accept.disabled = false;
+            decline.disabled = false;
+          }
+        });
+
+        // 拒绝走的是"移除合作者"，被邀请人自己也能调
+        decline.addEventListener('click', async () => {
+          if (!window.confirm(`拒绝「${invite.levelName}」的挂名邀请？`)) return;
+          accept.disabled = true;
+          decline.disabled = true;
+          try {
+            await removeCollaborator(invite.levelId, profileIdOf(profile));
+            row.remove();
+            if (!box.querySelector('.pending-row')) box.remove();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            accept.disabled = false;
+            decline.disabled = false;
+          }
+        });
+
+        row.append(
+          el('a', { class: 'pending-cover', href: `level.html?id=${invite.levelId}` },
+            invite.coverUrl
+              ? el('img', { src: invite.coverUrl, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' })
+              : null),
+          el('div', { class: 'pending-info' },
+            el('strong', {}, invite.levelName),
+            el('span', {}, `${invite.invitedByNickname} 邀请你以「${invite.role}」的身份挂名`),
+            el('span', { class: 'pending-note' }, '挂名只是署名，不会给你编辑这张谱面的权限。'),
+          ),
+          el('div', { class: 'pending-actions' }, accept, decline),
+          status,
+        );
+        box.append(row);
+      }
+
+      // 插在谱面区之前
+      const anchor = content.querySelector('.section-title');
+      if (anchor) content.insertBefore(box, anchor);
+      else content.append(box);
+    }
+
+    function profileIdOf(profile) {
+      return profile.id;
     }
 
     // ---------- 谱面 ----------

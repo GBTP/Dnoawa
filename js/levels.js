@@ -73,6 +73,43 @@ export function deleteLevel(id) {
   return del(`/api/levels/${id}`);
 }
 
+// ---------- 合作者挂名 ----------
+//
+// **纯署名，没有任何编辑权限。** 挂名不等于共同所有——所有权仍然只在上传者
+// 手上，要交出去得用下面的转让。
+//
+// LevelResponse.collaborators **只在谱面详情里填充**，列表、随机和热榜恒为空
+// 数组（后端刻意如此：为一个只在详情页展示的名单给列表加查询是浪费）。
+// 所以卡片上不要试图渲染它。
+
+/** 邀请一个身份挂名。对方确认后才会出现在署名里。 */
+export function inviteCollaborator(levelId, profileId, role) {
+  return post(`/api/levels/${levelId}/collaborators`, {
+    profileId: Number(profileId),
+    role: role.trim(),
+  });
+}
+
+/** 改某个合作者的分工标签。 */
+export function updateCollaboratorRole(levelId, profileId, role) {
+  return put(`/api/levels/${levelId}/collaborators/${profileId}`, { role: role.trim() });
+}
+
+/** 移除合作者（待确认的邀请也用这个撤回）。 */
+export function removeCollaborator(levelId, profileId) {
+  return del(`/api/levels/${levelId}/collaborators/${profileId}`);
+}
+
+/** 接受挂名邀请。 */
+export function acceptCollaboration(levelId) {
+  return post(`/api/levels/${levelId}/collaborators/accept`);
+}
+
+/** 我收到的、还没确认的挂名邀请。 */
+export function getPendingCollaborations() {
+  return get('/api/levels/collaborations/pending');
+}
+
 // ---------- 谱面所有权转让 ----------
 //
 // 用于多人合作时在成员之间移交谱面，也用于代传后把作品交还作者。
