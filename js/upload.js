@@ -11,8 +11,9 @@
 import { post } from './api.js';
 import { uploadFile } from './tus.js';
 import {
-  PRESET, readBytes, sniff, isOggVorbis, decodeAudio, resample, sliceAudio,
-  defaultPreviewRange, encodeOggVorbis, processImage, buildZip, probeVideo,
+  PRESET, readBytes, decodeAudio, resample, sliceAudio, defaultPreviewRange,
+  encodeOggVorbis, processImage, buildZip, probeVideo,
+  imageNeedsNoWork, audioNeedsNoWork,
 } from './media.js';
 import {
   DIFFICULTY_COUNT, DIFF_NAMES, DIFF_COLORS, isSonglistName, parseSonglist,
@@ -201,16 +202,17 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
   report('读取音频');
   const musicBytes = await readBytes(scan.music);
 
-  // 已经是合规 Ogg Vorbis 就原样上传：重新编码只是白掉一代音质，
-  // 而谱师手上的 base.ogg 本来就是客户端编好的
-  const musicIsReady = isOggVorbis(musicBytes);
-
   let buffer = decoded;
   if (!buffer) {
     report('解码音频');
     buffer = await decodeAudio(scan.music);
   }
   const range = normalizePreviewRange(meta, buffer.duration);
+
+  // 已经完全合规才原样上传（OGG Vorbis + 44100 + 码率达标）：重新编码只是白掉
+  // 一代音质，而谱师手上的 base.ogg 多半就是客户端编好的。但采样率或码率不对
+  // 时必须重编——客户端 TryDecode 判的就是 44100，后端会拒超 750kbps 的。
+  const musicIsReady = audioNeedsNoWork(musicBytes, buffer);
 
   let musicBlob;
   if (musicIsReady) {
@@ -229,7 +231,9 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
   // ---------- 2. 曲绘 ----------
   report('处理曲绘');
   const coverBytes = await readBytes(scan.cover);
-  const coverBlob = sniff(coverBytes) === 'jpeg' && scan.cover.size < 900 * 1024
+  // 看分辨率而不是文件大小：4000×4000 但压得狠的 JPEG 可能只有 800KB，
+  // 按大小判会把超规格的图原样传上去
+  const coverBlob = imageNeedsNoWork(coverBytes, PRESET.cover)
     ? new Blob([coverBytes], { type: 'image/jpeg' })
     : await processImage(scan.cover, PRESET.cover);
 
@@ -238,8 +242,12 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
   const entries = [{ name: 'chart.aff', data: await readBytes(chartFile) }];
 
   if (scan.background) {
-    const processed = await processImage(scan.background, PRESET.background);
-    entries.push({ name: 'bg.jpg', data: await readBytes(processed), store: true });
+    // 和封面同样的规则：已经是合规尺寸的 JPEG 就不重编码
+    const bgBytes = await readBytes(scan.background);
+    const bgData = imageNeedsNoWork(bgBytes, PRESET.background)
+      ? bgBytes
+      : await readBytes(await processImage(scan.background, PRESET.background));
+    entries.push({ name: 'bg.jpg', data: bgData, store: true });
   }
   if (scan.effect) {
     entries.push({ name: 'effect.bin', data: await readBytes(scan.effect), store: true });

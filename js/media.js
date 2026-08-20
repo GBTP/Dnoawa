@@ -39,6 +39,28 @@ export function sniff(bytes) {
   return 'unknown';
 }
 
+/** 后端 AudioValidationService 的码率上限。超了 tus 上传的最后一片会 400。 */
+export const MAX_AUDIO_KBPS = 750;
+
+/**
+ * 这段音频能不能原样上传。三个条件缺一不可，对齐客户端
+ * AssetTranscoder.TryDecode 和后端 AudioValidationService 的校验：
+ *
+ * - 必须是 OGG Vorbis（后端只认这个）
+ * - 采样率必须是 44100（客户端 TryDecode 判的就是这个，不是就重编码）
+ * - 实际码率不超 750kbps（后端会拒，口径是 文件大小×8÷时长）
+ *
+ * @param {Uint8Array} bytes
+ * @param {AudioBuffer} decoded 已解码的音频，用来拿采样率和时长
+ */
+export function audioNeedsNoWork(bytes, decoded) {
+  if (!isOggVorbis(bytes)) return false;
+  if (decoded.sampleRate !== PRESET.music.sampleRate) return false;
+
+  const kbps = decoded.duration > 0 ? (bytes.length * 8) / decoded.duration / 1000 : Infinity;
+  return kbps <= MAX_AUDIO_KBPS;
+}
+
 /** Ogg 容器里装的是不是 Vorbis（可能是 Opus/FLAC，后端只认 Vorbis）。 */
 export function isOggVorbis(bytes) {
   if (sniff(bytes) !== 'ogg') return false;
@@ -48,6 +70,54 @@ export function isOggVorbis(bytes) {
     if (head[i] === 0x01 && String.fromCharCode(...head.subarray(i + 1, i + 7)) === 'vorbis') return true;
   }
   return false;
+}
+
+/**
+ * 读 JPEG/PNG 的宽高，只解文件头，不解码整张图。
+ *
+ * 判断"这张图要不要处理"必须看分辨率——用文件大小当代理是错的：
+ * 一张 4000×4000 但压得很狠的 JPEG 可能只有 800KB，原样传上去客户端那边
+ * 拿到的就是超规格的图（ProcessCoverAsync 里 > maxWidth 就一定会 Resize）。
+ *
+ * @returns {?{width: number, height: number}} 认不出返回 null
+ */
+export function imageSize(bytes) {
+  const kind = sniff(bytes);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  if (kind === 'png') {
+    // IHDR 固定在偏移 16，宽高各 4 字节大端
+    if (bytes.length < 24) return null;
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+
+  if (kind === 'jpeg') {
+    // 扫段直到 SOFn。0xC4/0xC8/0xCC 不是 SOF，分别是 DHT/JPG/DAC
+    let i = 2;
+    while (i < bytes.length - 9) {
+      if (bytes[i] !== 0xff) { i += 1; continue; }
+      const marker = bytes[i + 1];
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { height: view.getUint16(i + 5), width: view.getUint16(i + 7) };
+      }
+      const len = (bytes[i + 2] << 8) | bytes[i + 3];
+      if (len < 2) return null;
+      i += 2 + len;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 这张图能不能原样上传：必须已经是 JPEG，且分辨率在上限内。
+ * 认不出尺寸时返回 false——宁可多处理一次，也别把超规格的图传上去。
+ */
+export function imageNeedsNoWork(bytes, { maxWidth, maxHeight }) {
+  if (sniff(bytes) !== 'jpeg') return false;
+  const size = imageSize(bytes);
+  if (!size) return false;
+  return size.width <= maxWidth && size.height <= maxHeight;
 }
 
 // ---------- 音频 ----------

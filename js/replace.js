@@ -12,8 +12,9 @@
 
 import { uploadFile } from './tus.js';
 import {
-  PRESET, readBytes, sniff, isOggVorbis, decodeAudio, resample, sliceAudio,
+  PRESET, readBytes, sniff, decodeAudio, resample, sliceAudio,
   encodeOggVorbis, processImage, buildZip, probeVideo,
+  imageNeedsNoWork, audioNeedsNoWork,
 } from './media.js';
 
 /**
@@ -74,8 +75,8 @@ export async function prepareResource(kind, file, report, options = {}) {
     case 'cover': {
       report('处理封面');
       const bytes = await readBytes(file);
-      // 已经是合规 JPEG 就原样上传，重编码只是白掉一代画质
-      const blob = sniff(bytes) === 'jpeg' && file.size < 900 * 1024
+      // 按分辨率判而不是文件大小——压得狠的大图文件可能很小
+      const blob = imageNeedsNoWork(bytes, PRESET.cover)
         ? new Blob([bytes], { type: 'image/jpeg' })
         : await processImage(file, PRESET.cover);
       return { blob, name: 'cover' };
@@ -84,11 +85,14 @@ export async function prepareResource(kind, file, report, options = {}) {
     case 'music': {
       report('读取音频');
       const bytes = await readBytes(file);
-      if (isOggVorbis(bytes)) {
+      const decoded = await decodeAudio(file);
+
+      // OGG Vorbis + 44100 + 码率达标才原样传，三者缺一就重编码
+      if (audioNeedsNoWork(bytes, decoded)) {
         return { blob: new Blob([bytes], { type: 'audio/ogg' }), name: 'music' };
       }
+
       report('转码音频');
-      const decoded = await decodeAudio(file);
       const blob = await encodeOggVorbis(
         await resample(decoded, PRESET.music.sampleRate), PRESET.music.vbrQuality);
       return { blob, name: 'music' };
@@ -103,7 +107,7 @@ export async function prepareResource(kind, file, report, options = {}) {
       // 免得白掉一代音质。给了区间就必须走切片——用户框了区间却不生效是更糟的。
       if (!range) {
         const bytes = await readBytes(file);
-        if (isOggVorbis(bytes) && decoded.duration <= PRESET.preview.maxSeconds) {
+        if (audioNeedsNoWork(bytes, decoded) && decoded.duration <= PRESET.preview.maxSeconds) {
           return { blob: new Blob([bytes], { type: 'audio/ogg' }), name: 'preview' };
         }
       }
