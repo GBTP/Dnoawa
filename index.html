@@ -17,6 +17,7 @@
       <nav class="top-actions">
         <a class="top-link current" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="user.html">我的空间</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
       </nav>
@@ -53,10 +54,10 @@
 
   <script type="module">
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
-    import { listLevels, SORT_OPTIONS, STATUS_LABELS, PAGE_SIZE } from './js/levels.js';
-    import { difficultyTier } from './js/songlist.js';
+    import { listLevels, SORT_OPTIONS, PAGE_SIZE } from './js/levels.js';
+    import { levelCard } from './js/level-card.js';
     import {
-      el, clear, coverImage, applyTheme, formatCount, formatDuration, showBox, hideBox,
+      el, showBox, hideBox, clear,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -64,8 +65,12 @@
     document.getElementById('logout').addEventListener('click', logout);
 
     const nickname = getProfile().nickname;
-    document.getElementById('greeting').textContent =
-      nickname ? `欢迎回来，${nickname}` : '浏览社区上传的谱面';
+    const greeting = document.getElementById('greeting');
+    if (nickname) {
+      greeting.append('欢迎回来，', el('a', { href: 'user.html' }, nickname));
+    } else {
+      greeting.textContent = '浏览社区上传的谱面';
+    }
 
     // 与客户端对齐：ChartLibraryPage.cs:504 显式传 20，SDK 各方法默认值也是 20，
     // 后端 LevelQueryParams.PageSize 的默认同样是 20。常量定义在 levels.js，
@@ -170,47 +175,6 @@
         document.getElementById('next').disabled = result.page >= totalPages;
         state.totalPages = totalPages;
       }
-    }
-
-    function levelCard(level) {
-      const card = el('a', {
-        class: 'level-card',
-        href: `level.html?id=${encodeURIComponent(level.id)}`,
-      });
-      applyTheme(card, level.themeColor);
-
-      const cover = coverImage(level, { alt: `${level.levelName} 封面` });
-      if (level.displayDifficulty) {
-        // 认得出难度档就用该档的固定色（与客户端 DiffColors 同一套），
-        // 认不出时回落到谱面自己的 themeColor
-        const tier = difficultyTier(level.displayDifficulty);
-        cover.append(el('span', {
-          class: 'diff-badge',
-          dataset: tier >= 0 ? { tier: String(tier) } : {},
-        }, level.displayDifficulty));
-      }
-      // 非 Approved 的只可能是自己上传的——后端不会把别人审核中的谱面发过来
-      if (level.status && level.status !== 'Approved') {
-        cover.append(el('span', {
-          class: `status-badge ${level.status.toLowerCase()}`,
-        }, STATUS_LABELS[level.status] || level.status));
-      }
-
-      card.append(
-        cover,
-        el('div', { class: 'level-accent' }),
-        el('div', { class: 'level-meta' },
-          el('h3', { class: 'level-title' }, level.levelName),
-          el('p', { class: 'level-sub' }, level.composerName),
-          el('p', { class: 'level-sub' }, `谱面 ${level.charterName}`),
-        ),
-        el('div', { class: 'level-foot' },
-          el('span', { class: 'stat', title: '游玩次数' }, '▶', el('span', { class: 'num' }, formatCount(level.playCount))),
-          el('span', { class: 'stat', title: '点赞数' }, '♥', el('span', { class: 'num' }, formatCount(level.likeCount))),
-          el('span', { class: 'stat num', style: 'margin-left:auto', title: '时长' }, formatDuration(level.durationSeconds)),
-        ),
-      );
-      return card;
     }
 
     function renderSkeletons() {

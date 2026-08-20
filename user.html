@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>个人空间 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link current" href="user.html">我的空间</a>
+        <a class="top-link" href="docs/index.html">使用指南</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <div id="content"></div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout, ApiError, getToken, saveSession } from './js/api.js';
+    import {
+      getMyProfile, getPublicUser, updateProfile,
+      getMyLevels, getUserLevels, getRecentPlays,
+    } from './js/users.js';
+    import { levelCard } from './js/level-card.js';
+    import { COMBO_LABELS } from './js/levels.js';
+    import { uploadFile } from './js/tus.js';
+    import { PRESET, processImage } from './js/media.js';
+    import {
+      el, clear, formatDate, displayName, showBox, hideBox,
+    } from './js/ui.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+    document.getElementById('logout').addEventListener('click', logout);
+
+    const content = document.getElementById('content');
+    const requested = new URLSearchParams(location.search).get('id');
+
+    if (requested !== null && !/^\d+$/.test(requested)) {
+      renderError('链接不完整', '用户编号无效。');
+    } else {
+      load(requested === null ? null : Number(requested));
+    }
+
+    /** @param {?number} id null 表示看自己 */
+    async function load(id) {
+      content.append(el('div', { class: 'skeleton', style: 'height:180px' }));
+
+      let profile;
+      let isSelf = id === null;
+      try {
+        profile = isSelf ? await getMyProfile() : await getPublicUser(id);
+        // 带着自己的 id 进来也算看自己，省得同一个人有两套界面
+        if (!isSelf && profile.id === (await currentUserId())) isSelf = true;
+      } catch (error) {
+        clear(content);
+        if (error instanceof ApiError && error.isGone) {
+          renderError('用户不存在', '这个账号可能已经注销或被删除。');
+        } else {
+          renderError('加载失败', describeError(error));
+        }
+        return;
+      }
+
+      clear(content);
+      renderProfile(profile, isSelf);
+      loadLevels(profile.id, isSelf);
+      loadPlays(isSelf ? null : profile.id);
+    }
+
+    let cachedId = null;
+    async function currentUserId() {
+      cachedId ??= (await getMyProfile()).id;
+      return cachedId;
+    }
+
+    // ---------- 资料区 ----------
+
+    function renderProfile(profile, isSelf) {
+      const anonymized = Boolean(profile.isAnonymized);
+      const name = displayName(profile.nickname, anonymized);
+      document.title = `${name} · Anoawa 社区`;
+
+      const avatar = el('div', { class: 'avatar' });
+      if (profile.avatarUrl && !anonymized) {
+        const img = el('img', {
+          src: profile.avatarUrl,
+          alt: `${name} 的头像`,
+          referrerpolicy: 'no-referrer',
+          onerror: () => { img.remove(); avatar.classList.add('avatar-empty'); },
+        });
+        avatar.append(img);
+      } else {
+        avatar.classList.add('avatar-empty');
+        avatar.textContent = name.slice(0, 1);
+      }
+
+      const meta = el('div', { class: 'profile-meta' },
+        el('h1', {}, name),
+        el('p', { class: 'profile-sub num' }, `UID ${profile.id}`),
+      );
+
+      if (profile.isAdmin) meta.append(el('span', { class: 'role-badge' }, '管理员'));
+      if (anonymized) {
+        meta.append(el('p', { class: 'profile-sub' }, '该账号已注销，昵称与头像不再展示。'));
+      }
+      if (profile.bilibiliUid) {
+        meta.append(el('p', { class: 'profile-sub' },
+          el('a', {
+            href: `https://space.bilibili.com/${encodeURIComponent(profile.bilibiliUid)}`,
+            target: '_blank',
+            rel: 'noreferrer',
+          }, `Bilibili ${profile.bilibiliUid} ↗`)));
+      }
+      if (isSelf && profile.email) {
+        meta.append(el('p', { class: 'profile-sub' }, profile.email));
+      }
+
+      const header = el('section', { class: 'profile' }, avatar, meta);
+      if (isSelf) header.append(editPanel(profile));
+      content.append(header);
+
+      content.append(
+        el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
+        el('div', { class: 'level-grid', id: 'levels' }),
+        el('h2', { class: 'section-title' }, '最近游玩'),
+        el('div', { id: 'plays' }, el('div', { class: 'skeleton', style: 'height:90px' })),
+      );
+    }
+
+    // ---------- 编辑自己的资料 ----------
+
+    function editPanel(profile) {
+      const box = el('div', { class: 'profile-edit', hidden: true });
+      const toggle = el('button', { class: 'button small', type: 'button' }, '编辑资料');
+
+      const nickname = el('input', { class: 'input', maxlength: '24', value: profile.nickname ?? '' });
+      const bilibili = el('input', { class: 'input', maxlength: '20', value: profile.bilibiliUid ?? '', placeholder: '纯数字 UID，留空即解绑' });
+      const avatarInput = el('input', { type: 'file', accept: 'image/*', hidden: true });
+      const avatarButton = el('button', { class: 'button small', type: 'button' }, '更换头像');
+      const avatarName = el('span', { class: 'profile-sub' }, '未选择');
+      const save = el('button', { class: 'button primary small', type: 'button' }, '保存');
+      const status = el('div', { class: 'callout', hidden: true });
+
+      avatarButton.addEventListener('click', () => avatarInput.click());
+      avatarInput.addEventListener('change', () => {
+        avatarName.textContent = avatarInput.files[0]?.name || '未选择';
+      });
+
+      toggle.addEventListener('click', () => {
+        box.hidden = !box.hidden;
+        toggle.textContent = box.hidden ? '编辑资料' : '收起';
+      });
+
+      save.addEventListener('click', async () => {
+        hideBox(status);
+        save.disabled = true;
+        const original = save.textContent;
+        save.textContent = '保存中…';
+
+        try {
+          const patch = {};
+          const nextNickname = nickname.value.trim();
+          if (nextNickname && nextNickname !== profile.nickname) patch.nickname = nextNickname;
+
+          // 留空表示解绑，所以要和原值比较、允许提交空串
+          const nextBilibili = bilibili.value.trim();
+          if (nextBilibili !== (profile.bilibiliUid ?? '')) patch.bilibiliUid = nextBilibili;
+
+          const file = avatarInput.files[0];
+          if (file) {
+            save.textContent = '处理头像…';
+            // 头像后端会再生成 256px 缩略图，这里先压到 512 免得白传大图
+            const blob = await processImage(file, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
+            save.textContent = '上传头像…';
+            patch.avatarFileId = await uploadFile(blob, { fileType: 'avatar', name: 'avatar.jpg' });
+          }
+
+          if (!Object.keys(patch).length) {
+            showBox(status, '没有需要保存的改动', '');
+            return;
+          }
+
+          save.textContent = '保存中…';
+          const updated = await updateProfile(patch);
+
+          // 顶栏和谱面库的问候语读的是本地存档，一起更新
+          saveSession(getToken(), {
+            nickname: updated.nickname,
+            avatarUrl: updated.avatarUrl,
+          });
+          showBox(status, '已保存，正在刷新…', 'success');
+          setTimeout(() => location.reload(), 700);
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+        } finally {
+          save.disabled = false;
+          save.textContent = original;
+        }
+      });
+
+      box.append(
+        el('div', { class: 'field' }, el('label', {}, '昵称'), nickname),
+        el('div', { class: 'field' }, el('label', {}, 'Bilibili UID'), bilibili),
+        el('div', { class: 'field' },
+          el('label', {}, '头像'),
+          el('div', { class: 'avatar-pick' }, avatarButton, avatarName, avatarInput)),
+        save,
+        status,
+      );
+
+      return el('div', { class: 'profile-actions' }, toggle, box);
+    }
+
+    // ---------- 谱面 ----------
+
+    async function loadLevels(id, isSelf) {
+      const box = document.getElementById('levels');
+      try {
+        const result = isSelf ? await getMyLevels() : await getUserLevels(id);
+        clear(box);
+
+        if (!result.items.length) {
+          box.append(el('div', { class: 'empty', style: 'grid-column:1/-1' },
+            el('h3', {}, '还没有上传过谱面'),
+            isSelf ? el('p', {}, el('a', { href: 'upload.html' }, '上传第一张 →')) : null,
+          ));
+          return;
+        }
+
+        for (const level of result.items) box.append(levelCard(level));
+
+        if (result.totalCount > result.items.length) {
+          box.append(el('p', { class: 'result-meta', style: 'grid-column:1/-1;margin-top:8px' },
+            `共 ${result.totalCount} 张，这里显示最近 ${result.items.length} 张`));
+        }
+      } catch (error) {
+        clear(box);
+        box.append(el('div', { class: 'callout error', style: 'grid-column:1/-1' }, describeError(error)));
+      }
+    }
+
+    // ---------- 最近游玩 ----------
+
+    async function loadPlays(id) {
+      const box = document.getElementById('plays');
+      try {
+        const result = await getRecentPlays(id);
+        clear(box);
+
+        if (!result.items.length) {
+          box.append(el('div', { class: 'empty' }, el('h3', {}, '还没有游玩记录')));
+          return;
+        }
+
+        const list = el('div', { class: 'plays' });
+        for (const play of result.items) {
+          const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[play.comboState] || 'tc';
+          list.append(el('a', { class: 'play-row', href: `level.html?id=${play.levelId}` },
+            el('span', { class: 'play-name' },
+              play.levelName,
+              el('span', { class: 'play-diff num' }, play.displayDifficulty)),
+            el('span', { class: `play-judge num` },
+              `${play.maxPureCount}/${play.pureCount}/${play.farCount}/${play.lostCount}`),
+            el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[play.comboState] || ''),
+            el('span', { class: 'play-score num' }, play.score.toLocaleString('en-US')),
+            el('span', { class: 'play-time' }, formatDate(play.playedAtUtc)),
+          ));
+        }
+        box.append(list);
+        box.append(el('p', { class: 'result-meta', style: 'margin-top:10px' },
+          '判定按 Max Pure / Pure / Far / Lost 排列。'));
+      } catch (error) {
+        clear(box);
+        box.append(el('div', { class: 'callout error' }, describeError(error)));
+      }
+    }
+
+    function renderError(title, detail) {
+      clear(content);
+      content.append(el('div', { class: 'card' },
+        el('div', { class: 'empty' },
+          el('h3', {}, title),
+          el('p', {}, detail),
+          el('p', { style: 'margin-top:16px' }, el('a', { href: 'index.html' }, '← 返回谱面库')),
+        ),
+      ));
+    }
+  </script>
+</body>
+</html>

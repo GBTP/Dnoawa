@@ -17,6 +17,7 @@
       <nav class="top-actions">
         <a class="top-link" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="user.html">我的空间</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
       </nav>
@@ -139,11 +140,16 @@
       ];
 
       return el('div', { class: 'spec-row' },
-        items.filter(([, value]) => value).map(([label, value, accent]) =>
-          el('span', { class: `spec${accent ? ' accent' : ''}` },
+        items.filter(([, value]) => value).map(([label, value, accent]) => {
+          // 上传者做成链接，但注销用户的墓碑账号没什么可看的，不链
+          const isUploader = label === '上传者' && !level.uploaderIsAnonymized;
+          return el('span', { class: `spec${accent ? ' accent' : ''}` },
             el('span', { class: 'label' }, label),
-            el('span', { class: 'value num' }, value),
-          )),
+            isUploader
+              ? el('a', { class: 'value', href: `user.html?id=${level.uploaderId}` }, value)
+              : el('span', { class: 'value num' }, value),
+          );
+        }),
       );
     }
 
@@ -260,9 +266,10 @@
         const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
         board.append(el('div', { class: 'board-row' },
           el('span', { class: 'board-rank' }, `#${score.rank}`),
-          el('span', {
-            class: `board-name${score.isAnonymized ? ' anonymized' : ''}`,
-          }, displayName(score.nickname, score.isAnonymized)),
+          score.isAnonymized
+            ? el('span', { class: 'board-name anonymized' }, displayName(score.nickname, true))
+            : el('a', { class: 'board-name', href: `user.html?id=${score.userId}` },
+                displayName(score.nickname, false)),
           el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[score.comboState] || ''),
           el('span', { class: 'board-score' }, score.score.toLocaleString('en-US')),
         ));

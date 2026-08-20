@@ -553,6 +553,92 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 .launch-fallback { margin-top: 14px; }
 
 /* ==========================================================================
+   个人空间
+   ========================================================================== */
+
+.profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* 没头像时用昵称首字，比一个空框或占位图标干净 */
+.avatar-empty {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 34px;
+  font-weight: 600;
+}
+
+.profile-meta { flex: 1 1 240px; min-width: 0; }
+.profile-meta h1 {
+  margin: 0;
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 600;
+  letter-spacing: -.03em;
+  word-break: break-word;
+}
+.profile-sub { margin: 5px 0 0; color: var(--faint); font-size: 13px; }
+.role-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--line-strong);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.profile-actions { flex: 0 0 100%; }
+.profile-edit {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  max-width: 460px;
+}
+.profile-edit[hidden] { display: none; }
+.avatar-pick { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- 最近游玩 ---------- */
+
+.plays { border: 1px solid var(--line); }
+.play-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 10px 14px;
+  color: inherit;
+  font-size: 14px;
+  text-decoration: none;
+}
+.play-row + .play-row { border-top: 1px solid var(--line); }
+.play-row:hover { background: var(--bg-raised); }
+.play-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-diff { margin-left: 8px; color: var(--faint); font-size: 12px; }
+.play-judge { color: var(--faint); font-size: 12px; }
+.play-score { font-variant-numeric: tabular-nums; }
+.play-time { color: var(--faint); font-size: 12px; min-width: 56px; text-align: right; }
+
+@media (max-width: 720px) {
+  .play-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .play-judge, .board-combo { display: none; }
+}
+
+/* ==========================================================================
    试听播放器（不支持 Vorbis 的浏览器走 Web Audio，控件自绘）
    ========================================================================== */
 
