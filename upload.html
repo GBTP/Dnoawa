@@ -132,12 +132,13 @@
           <p class="hint">不勾选的话，下载者只能游玩，不能再导出成可编辑的源文件。</p>
         </div>
 
-        <div class="callout" id="attribution-note">
-          <strong>谱面会记在你当前的身份名下。</strong>
-          <p>社区里显示的上传者是「<span id="current-identity">你</span>」，与上面填的「谱师」是两回事——
-             前者是谁传的，后者是谁做的。</p>
-          <p>帮别人代传时，建议<a href="user.html">单独建一个身份</a>用作者的名字来传，
-             日后可以把整个身份转让给作者本人。用自己的常用身份代传的话，名义上会一直挂在你名下。</p>
+        <div class="callout warning" id="attribution-note">
+          <strong>上传者就是这张谱面的所有者。</strong>
+          <p>用「<span id="current-identity">当前身份</span>」上传，这张谱面就归它所有——
+             编辑、替换资源、删除都由它说了算。上面填的「谱师」只是署名，不影响归属。</p>
+          <p>所以帮别人代传时，请<a href="user.html">单独建一个身份</a>用作者的名字来传，
+             日后把整个身份转让给作者本人。用自己的常用身份代传的话，作品的控制权会一直在你手上，
+             而且转让时没法只交出那几张。</p>
         </div>
 
         <div class="callout">
@@ -193,7 +194,8 @@
       const charter = charterInput.value.trim();
       if (charter && charter !== identityName) {
         charterHint.textContent =
-          `这张谱面会显示为由「${identityName}」上传、由「${charter}」制作。代传请看下方说明。`;
+          `谱师填的是「${charter}」，但这张谱面会归当前身份「${identityName}」所有。` +
+          `代传请先单独建一个身份，见下方说明。`;
         charterHint.classList.add('is-warn');
       } else {
         charterHint.textContent = '';
