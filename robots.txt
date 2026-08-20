@@ -1,0 +1,9 @@
+User-agent: *
+
+# 需要登录才有内容，爬虫抓到的是空壳；user 页还涉及他人昵称头像
+Disallow: /login.html
+Disallow: /upload.html
+Disallow: /user.html
+Disallow: /level.html
+
+Sitemap: https://anoawa.cc/sitemap.xml

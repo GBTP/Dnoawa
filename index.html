@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0b0d">
-  <title>谱面库 · Anoawa 社区</title>
-  <meta name="robots" content="noindex">
+  <title>社区谱面库 · Anoawa</title>
+  <meta name="description" content="浏览 Anoawa 社区玩家上传的谱面：搜索曲名、曲师与谱师，试听片段，查看排行榜。">
+  <link rel="canonical" href="https://anoawa.cc/">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -30,6 +31,26 @@
       <h1>谱面库</h1>
       <p id="greeting"></p>
     </div>
+
+    <!--
+      静态的站点介绍。存在的意义有两个：
+      1. 爬虫和未登录访客拿到的原本是个空壳（谱面全靠登录后 JS 填），收录一个
+         空页面等于让人搜进来就被踢到登录页；
+      2. 新访客需要先知道这是什么、去哪拿游戏。
+      登录用户看不到它——脚本里第一件事就是移除。
+    -->
+    <section class="intro-block" id="intro">
+      <p class="lead">
+        Anoawa 是一款基于 Arcaea 玩法的社区音乐游戏。玩家在这里上传自己制作的
+        <code>.aff</code> 谱面，其他人可以下载、游玩并提交成绩。
+      </p>
+      <div class="intro-actions">
+        <a class="button primary" href="get.html">获取游戏</a>
+        <a class="button" href="login.html">登录后浏览谱面</a>
+        <a class="button ghost" href="docs/index.html">使用指南</a>
+      </div>
+      <p class="intro-note">浏览与下载社区谱面需要登录账号。</p>
+    </section>
 
     <form class="toolbar" id="toolbar" role="search">
       <input class="input search" type="search" id="search" name="search"
@@ -66,6 +87,9 @@
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
+
+    // 登录用户不需要那段面向新访客的介绍
+    document.getElementById('intro')?.remove();
 
     document.getElementById('logout').addEventListener('click', logout);
 

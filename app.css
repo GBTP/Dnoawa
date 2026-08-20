@@ -743,6 +743,28 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .next-step strong { display: block; margin-bottom: 4px; font-size: 15px; font-weight: 600; }
 .next-step span { color: var(--muted); font-size: 13px; }
 
+/* 谱面库上给未登录访客/爬虫看的站点介绍，登录后由脚本移除 */
+.intro-block {
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.intro-block .lead {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+.intro-block code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: .88em;
+}
+.intro-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.intro-note { margin: 12px 0 0; color: var(--faint); font-size: 12.5px; }
+
 /* 登录页和谱面库上的获取游戏条 */
 .get-strip {
   display: flex;
