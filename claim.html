@@ -88,7 +88,18 @@
         const level = await previewLevelTransfer(code);
         renderPreview(level, code);
       } catch (error) {
-        showBox(errorBox, describeError(error), 'error');
+        // 站里有两种转让码，长得差不多但走不同端点：谱面转让码在这里领，
+        // 身份转让码要到我的空间领。码对不上时多半是拿错了地方，直接指路。
+        clear(errorBox);
+        errorBox.className = 'callout error';
+        errorBox.append(
+          el('strong', {}, describeError(error)),
+          el('p', {},
+            '如果这是一串「用户数据转让码」（转让的是整个身份，不是单张谱面），',
+            el('a', { href: 'user.html' }, '请到我的空间领取'),
+            '。'),
+        );
+        errorBox.hidden = false;
       } finally {
         checkButton.disabled = false;
         checkButton.textContent = '查看';

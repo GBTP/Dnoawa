@@ -867,6 +867,23 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   word-break: break-word;
 }
 .profile-sub { margin: 5px 0 0; color: var(--faint); font-size: 13px; }
+/* 行内的"值 + 复制按钮"，用于 UID 这类短值 */
+.copyable { display: inline-flex; align-items: baseline; gap: 6px; }
+.copyable-value { color: var(--muted); }
+.copyable-button {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  color: var(--faint);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.copyable-button:hover { color: var(--text); border-color: var(--line-strong); }
+
+/* B 站空间按钮和复制按钮并排时留点距离 */
+.profile-sub .copyable + .copyable-button { margin-left: 6px; }
+
 .unverified {
   margin-left: 4px;
   padding: 0 5px;

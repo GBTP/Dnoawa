@@ -208,6 +208,37 @@ export function commandBlock(command, note) {
   );
 }
 
+/**
+ * 行内的"值 + 复制按钮"。比 commandBlock 轻，用于 UID 这类短值。
+ *
+ * @param {string} value
+ * @param {{className?: string, label?: string}} [options]
+ */
+export function copyableValue(value, { className = '', label = '复制' } = {}) {
+  const text = el('span', { class: 'copyable-value num' }, value);
+  const button = el('button', { class: 'copyable-button', type: 'button', title: `复制${value}` }, label);
+
+  button.addEventListener('click', async event => {
+    // 这个组件常放在 <a> 里面（比如个人空间的卡片），别让点击冒泡上去触发跳转
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      button.textContent = '已复制';
+    } catch {
+      // 剪贴板要安全上下文和权限，失败时选中让用户自己复制
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+      button.textContent = '请手动复制';
+    }
+    setTimeout(() => { button.textContent = label; }, 1600);
+  });
+
+  return el('span', { class: `copyable ${className}`.trim() }, text, button);
+}
+
 // ---------- 交互 ----------
 
 /** 提交期间禁用按钮并转圈，结束后还原。 */

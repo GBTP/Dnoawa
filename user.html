@@ -48,6 +48,7 @@
     import { PRESET, processImage } from './js/media.js';
     import {
       el, clear, formatDate, displayName, showBox, hideBox, avatarImage, commandBlock,
+      copyableValue,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -107,7 +108,9 @@
 
       const meta = el('div', { class: 'profile-meta' },
         el('h1', {}, name),
-        el('p', { class: 'profile-sub num' }, `UID ${profile.id}`),
+        el('p', { class: 'profile-sub' },
+          'UID ',
+          copyableValue(String(profile.id))),
       );
 
       if (profile.isAdmin) meta.append(el('span', { class: 'role-badge' }, '管理员'));
@@ -115,11 +118,24 @@
         meta.append(el('p', { class: 'profile-sub' }, '该账号已注销，昵称与头像不再展示。'));
       }
       if (profile.bilibiliUid) {
-        // 刻意不做成可点链接：这个 UID 谁都能填，后端既不校验格式也不验证归属。
-        // 渲染成跳转 B 站空间的链接等于替一个未经验证的声明背书——填别人 UID
-        // 的人会白得一个看起来很正规的入口。等有了真正的归属验证再放开。
+        // 按钮而不是自动链接：这个 UID 谁都能填，后端既不校验格式也不验证归属。
+        // 直接渲染成 <a> 等于替未经验证的声明背书，而且鼠标悬停就显示目标地址，
+        // 看起来很正规。做成需要主动点击的按钮 + "未验证"标记，责任归属清楚。
+        const open = el('button', { class: 'copyable-button', type: 'button' }, '打开空间 ↗');
+        open.addEventListener('click', () => {
+          if (!/^\d+$/.test(profile.bilibiliUid)) {
+            alert('这个 Bilibili UID 不是纯数字，无法打开。');
+            return;
+          }
+          window.open(
+            `https://space.bilibili.com/${encodeURIComponent(profile.bilibiliUid)}`,
+            '_blank', 'noopener,noreferrer');
+        });
+
         meta.append(el('p', { class: 'profile-sub' },
-          `Bilibili UID ${profile.bilibiliUid} `,
+          'Bilibili UID ',
+          copyableValue(profile.bilibiliUid),
+          open,
           el('span', { class: 'unverified', title: '该 UID 由用户自行填写，未经验证' }, '未验证')));
       }
       if (isSelf && profile.email) {
@@ -440,7 +456,17 @@
             await claimTransfer(code.value);
             renderList();
           } catch (error) {
-            showBox(status, describeError(error), 'error');
+            // 反过来的指路：这里领的是整个身份，谱面转让码要去 claim.html
+            clear(status);
+            status.className = 'callout error';
+            status.append(
+              el('strong', {}, describeError(error)),
+              el('p', {},
+                '如果这是一串「谱面转让码」（只转让单张谱面），',
+                el('a', { href: 'claim.html' }, '请到领取谱面页'),
+                '。'),
+            );
+            status.hidden = false;
             submit.disabled = false;
           }
         });

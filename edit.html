@@ -37,6 +37,7 @@
     import { getMyProfile } from './js/users.js';
     import {
       el, clear, showBox, hideBox, commandBlock, formatDate, displayName, avatarImage,
+      copyableValue,
     } from './js/ui.js';
     import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
     import { decodeAudio, defaultPreviewRange } from './js/media.js';
@@ -402,7 +403,7 @@
               { size: 96, className: 'avatar avatar-sm' }),
             el('div', {},
               el('strong', {}, displayName(person.nickname, person.isAnonymized)),
-              el('span', { class: 'num' }, `UID ${person.profileId}`)),
+              el('span', {}, 'UID ', copyableValue(String(person.profileId)))),
           ),
           el('div', { class: 'collab-actions' }, role, save, remove),
           status,
