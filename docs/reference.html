@@ -3,53 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f8fc">
+  <meta name="theme-color" content="#0b0b0d">
   <title>功能参考 — Anoawa 文档</title>
   <meta name="description" content="Anoawa 完整功能参考：按游戏页面查找每个功能的入口、作用、使用条件与成绩影响。">
-  <style>
-    :root {
-      --bg:#f7f8fc;--surface:#fff;--surface-2:#f1f3f9;--text:#1e2230;--muted:#626a7d;
-      --faint:#8991a4;--line:#e2e5ee;--line-strong:#d2d7e3;--accent:#6957e8;
-      --accent-strong:#5540d8;--accent-soft:#efedff;--mint:#0c8c72;--mint-soft:#e7f7f2;
-      --orange:#9b6811;--orange-soft:#fff7e5;--red:#b44757;--red-soft:#fff0f2;
-      --topbar:64px;--sidebar:252px;--radius:14px;
-      --font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    }
-    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar) + 24px)}
-    body{margin:0;color:var(--text);background:var(--bg);font-family:var(--font);font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
-    a{color:inherit}button,input{font:inherit}:focus-visible{outline:3px solid rgba(105,87,232,.35);outline-offset:3px}
-    .topbar{position:sticky;top:0;z-index:50;height:var(--topbar);border-bottom:1px solid rgba(210,215,227,.82);background:rgba(247,248,252,.9);backdrop-filter:blur(18px)}
-    .topbar-inner{width:min(1440px,100%);height:100%;margin:0 auto;padding:0 28px;display:flex;align-items:center;gap:18px}
-    .brand{display:inline-flex;align-items:center;gap:11px;color:var(--text);font-weight:750;letter-spacing:-.02em;text-decoration:none}
-    .brand-mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(145deg,#7c6cf0,#4e3bcc);box-shadow:0 7px 16px rgba(105,87,232,.24);font-size:15px}
-    .brand small{margin-left:2px;color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.04em}
-    .top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}.top-link,.menu-button{min-height:38px;padding:8px 13px;border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;font-size:14px;font-weight:650;text-decoration:none;cursor:pointer}
-    .top-link:hover,.menu-button:hover{color:var(--text);background:var(--surface);border-color:var(--line)}.top-link.primary{color:#fff;background:var(--accent)}.top-link.primary:hover{color:#fff;background:var(--accent-strong);border-color:transparent}.menu-button{display:none}
-    .docs-layout{width:min(1440px,100%);margin:0 auto;padding:0 28px;display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);gap:clamp(38px,5vw,78px)}
-    .sidebar{position:sticky;top:var(--topbar);height:calc(100vh - var(--topbar));padding:30px 18px 40px 0;overflow-y:auto;border-right:1px solid var(--line)}
-    .nav-group+.nav-group{margin-top:26px}.nav-label{margin:0 0 7px 12px;color:var(--faint);font-size:11px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}.side-nav{display:grid;gap:2px}
-    .side-nav a{padding:7px 11px;border-radius:8px;color:var(--muted);font-size:14px;line-height:1.4;text-decoration:none;transition:background .16s,color .16s}.side-nav a:hover{color:var(--text);background:var(--surface-2)}.side-nav a.active{color:var(--accent-strong);background:var(--accent-soft);font-weight:650}
-    .sidebar-meta{margin:28px 11px 0;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;line-height:1.65}.sidebar-meta a{color:var(--accent-strong);font-weight:700;text-decoration:none}
-    main{min-width:0;padding:48px 0 100px}.article{width:min(920px,100%)}.breadcrumb{color:var(--faint);font-size:13px;font-weight:600}
-    .hero{padding:8px 0 46px;border-bottom:1px solid var(--line)}.hero h1{margin:16px 0 0;font-size:clamp(38px,6vw,58px);line-height:1.12;letter-spacing:-.055em}.lead{max-width:730px;margin:19px 0 0;color:var(--muted);font-size:clamp(17px,2vw,20px)}
-    .mode-note{margin-top:22px;padding:14px 17px;border-left:4px solid var(--accent);border-radius:9px;color:#514b6c;background:var(--accent-soft);font-size:14px}.mode-note a{color:var(--accent-strong);font-weight:750;text-decoration:none}
-    .search-wrap{position:relative;margin-top:25px}.search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:18px}.search{width:100%;height:52px;padding:0 92px 0 46px;border:1px solid var(--line-strong);border-radius:12px;color:var(--text);background:var(--surface);box-shadow:0 6px 18px rgba(31,35,48,.04);font-size:15px}.search::placeholder{color:var(--faint)}.key{position:absolute;right:13px;top:50%;transform:translateY(-50%);padding:3px 8px;border:1px solid var(--line);border-radius:6px;color:var(--faint);background:var(--surface-2);font-size:11px;font-weight:700}.search-status{min-height:22px;margin:8px 2px 0;color:var(--faint);font-size:12px}
-    .ref-section{padding:55px 0 0}.section-kicker{margin:0 0 7px;color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}h2{margin:0;font-size:clamp(27px,4vw,35px);line-height:1.25;letter-spacing:-.035em}.section-intro{max-width:720px;margin:11px 0 0;color:var(--muted)}
-    .ref-list{margin-top:23px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);box-shadow:0 5px 16px rgba(31,35,48,.025)}
-    .ref-item{padding:20px 22px}.ref-item+.ref-item{border-top:1px solid var(--line)}.ref-top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.ref-top h3{margin:0;font-size:17px;line-height:1.4;letter-spacing:-.01em}.path{margin-left:auto;color:var(--faint);font-size:12px;font-weight:650;text-align:right}.ref-item>p{margin:8px 0 0;color:var(--muted);font-size:14px}
-    .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}.tag{padding:3px 7px;border-radius:5px;color:var(--muted);background:var(--surface-2);font-size:11px;font-weight:700}.tag.login{color:var(--accent-strong);background:var(--accent-soft)}.tag.safe{color:var(--mint);background:var(--mint-soft)}.tag.warn{color:var(--orange);background:var(--orange-soft)}.tag.score{color:var(--red);background:var(--red-soft)}
-    .empty{display:none;margin-top:30px;padding:35px;border:1px dashed var(--line-strong);border-radius:var(--radius);color:var(--muted);background:var(--surface);text-align:center}.empty.show{display:block}.ref-item[hidden],.ref-section[hidden]{display:none}
-    .article-footer{margin-top:72px;padding:28px 0 0;display:flex;flex-wrap:wrap;gap:12px 24px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}.article-footer a{color:var(--muted);font-weight:650;text-decoration:none}.article-footer a:hover{color:var(--accent)}
-    @media(max-width:960px){.topbar-inner,.docs-layout{padding-left:20px;padding-right:20px}.docs-layout{grid-template-columns:1fr}.sidebar{position:fixed;inset:var(--topbar) auto 0 0;z-index:45;width:min(320px,86vw);height:calc(100vh - var(--topbar));padding:24px 22px 36px;border-right:1px solid var(--line-strong);background:var(--surface);box-shadow:16px 0 40px rgba(31,35,48,.12);transform:translateX(-105%);transition:transform .22s ease}.sidebar.open{transform:translateX(0)}.menu-button{display:inline-flex;align-items:center}main{padding-top:38px}.article{margin:0 auto}}
-    @media(max-width:720px){:root{--topbar:58px}.topbar-inner,.docs-layout{padding-left:16px;padding-right:16px}.brand small,.top-actions .top-link:not(.primary){display:none}.menu-button,.top-link.primary{white-space:nowrap}.ref-section{padding-top:48px}.ref-item{padding:18px}.path{width:100%;margin-left:0;text-align:left}.key{display:none}.search{padding-right:16px}.top-link{padding:7px 10px}}
-    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition-duration:.001ms!important}}
-  </style>
+  <link rel="stylesheet" href="../app.css">
+  <link rel="stylesheet" href="docs.css">
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
       <button class="menu-button" type="button" aria-label="打开功能目录" aria-controls="sidebar" aria-expanded="false">☰ 目录</button>
-      <a class="brand" href="#overview"><span class="brand-mark">A</span><span>Anoawa</span><small>功能参考</small></a>
+      <a class="brand" href="#overview"><span>Anoawa</span><small>功能参考</small></a>
       <nav class="top-actions" aria-label="快捷链接">
         <a class="top-link" href="index.html">使用指南</a>
         <a class="top-link" href="../index.html">社区谱面</a>
