@@ -160,8 +160,6 @@
       const tags = el('input', { class: 'input', value: (level.tags || []).join(', '), placeholder: '用逗号分隔' });
       const intro = el('textarea', { class: 'input', rows: '3', maxlength: '500' });
       intro.value = level.introduction || '';
-      const allowExport = el('input', { type: 'checkbox' });
-      allowExport.checked = Boolean(level.allowExport);
 
       form.append(
         el('div', { class: 'field' },
@@ -169,10 +167,6 @@
           el('div', { class: 'input-row' }, themeText, themeSwatch)),
         el('div', { class: 'field' }, el('label', {}, '标签'), tags),
         el('div', { class: 'field' }, el('label', {}, '简介'), intro),
-        el('div', { class: 'field' },
-          el('label', { class: 'check' }, allowExport,
-            el('span', {}, '允许其他玩家把下载后的谱面导出成文件夹')),
-        ),
       );
 
       const save = el('button', { class: 'button primary', type: 'submit' }, '保存修改');
@@ -203,7 +197,6 @@
           put('bpm', fields.bpm.value.trim(), level.bpm ?? '');
           put('themeColor', /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0', level.themeColor);
           put('introduction', intro.value.trim(), level.introduction ?? '');
-          put('allowExport', allowExport.checked, Boolean(level.allowExport));
 
           const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
           const oldTags = level.tags || [];

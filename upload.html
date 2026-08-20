@@ -124,14 +124,6 @@
           <div id="video-hint"></div>
         </div>
 
-        <div class="field">
-          <label class="check">
-            <input type="checkbox" id="allowExport">
-            <span>允许其他玩家把下载后的谱面导出成文件夹</span>
-          </label>
-          <p class="hint">不勾选的话，下载者只能游玩，不能再导出成可编辑的源文件。</p>
-        </div>
-
         <div class="callout warning" id="attribution-note">
           <strong>上传者就是这张谱面的所有者。</strong>
           <p>用「<span id="current-identity">当前身份</span>」上传，这张谱面就归它所有——
@@ -592,7 +584,6 @@
         bpm: value('bpm'),
         themeColor: /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0',
         introduction: value('introduction'),
-        allowExport: document.getElementById('allowExport').checked,
         includeVideo: document.getElementById('includeVideo').checked,
         tags: value('tags').split(/[,，]/).map(t => t.trim()).filter(Boolean),
         previewStart: Number(value('previewStart')),

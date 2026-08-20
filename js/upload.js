@@ -297,7 +297,6 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
     introduction: meta.introduction || null,
     // 谱面加密是客户端 StringEncryptor 干的，网页上传的一律不加密
     isEncryptChart: false,
-    allowExport: Boolean(meta.allowExport),
     // 传 0 跳过交叉校验：写库的永远是服务端 NVorbis 实测的值
     durationSeconds: 0,
     tags: meta.tags,
