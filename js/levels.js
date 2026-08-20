@@ -68,9 +68,16 @@ export function updateLevel(id, patch) {
   return put(`/api/levels/${id}`, patch);
 }
 
-/** 删除谱面。上传者或管理员可用，会连带删掉云存储文件和所有人的成绩点赞。 */
+/**
+ * 删除谱面。**需要 accountToken**（先 elevate），因为这是不可逆操作——
+ * 云文件一起毁。后端把它和生成转让码一起挪进了 LevelOwnershipController，
+ * 整个类要求 AccountPolicy，规则是"不可逆的事都要提权"。
+ *
+ * 归属判定看的是账号而不是当前身份：名下任何小号的谱面都归他管，
+ * 不需要先切换到那个身份。
+ */
 export function deleteLevel(id) {
-  return del(`/api/levels/${id}`);
+  return del(`/api/levels/${id}`, { account: true });
 }
 
 // ---------- 合作者挂名 ----------
@@ -122,16 +129,20 @@ export function getPendingCollaborations({ page = 1, pageSize = 20 } = {}) {
 // 不像身份转让那样需要 accountToken。
 
 /**
- * 生成一次性转让码。**明文只在这次响应里出现**，库里存的是 SHA-256，
- * 任何接口都取不回来。
+ * 生成一次性转让码。**需要 accountToken**（先 elevate）——把归属送走同样是
+ * 不可逆的，和删除归在一起。
  *
+ * **明文只在这次响应里出现**，库里存的是 SHA-256，任何接口都取不回来。
  * 重复调用会作废上一个未领取的码——否则先后发出去的两张码都能兑换，
  * 发起方以为撤销了其实没有。
+ *
+ * 注意撤销（revokeLevelTransfer）仍在 LevelsController 里、收 profileToken：
+ * 撤销是可逆方向的操作，不需要提权。
  *
  * @returns {Promise<{code: string, expiresAtUtc: string}>}
  */
 export function createLevelTransfer(id) {
-  return post(`/api/levels/${id}/transfer`);
+  return post(`/api/levels/${id}/transfer`, undefined, { account: true });
 }
 
 /** 撤销未被领取的转让码。 */

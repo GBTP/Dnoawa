@@ -35,6 +35,7 @@
       inviteCollaborator, updateCollaboratorRole, removeCollaborator,
     } from './js/levels.js';
     import { getMyProfile } from './js/users.js';
+    import { elevate, needsElevate } from './js/profiles.js';
     import {
       el, clear, showBox, hideBox, commandBlock, formatDate, displayName, avatarImage,
       copyableValue,
@@ -86,6 +87,29 @@
 
       clear(content);
       renderForm(level, profile.isAdmin);
+    }
+
+    /**
+     * 不可逆操作（删除、生成转让码）需要 accountToken，后端整个
+     * LevelOwnershipController 都要求 AccountPolicy。accountToken 只放内存、
+     * 1 小时过期，所以这里按需索取：没有就弹密码框换一张。
+     *
+     * @returns {Promise<boolean>} 拿到凭据返回 true，用户取消或验证失败返回 false
+     */
+    async function ensureElevated(reason) {
+      if (!needsElevate()) return true;
+
+      const password = window.prompt(
+        `${reason}\n\n这是不可逆的操作，请输入账号密码确认：`);
+      if (!password) return false;
+
+      try {
+        await elevate(password);
+        return true;
+      } catch (error) {
+        alert(describeError(error));
+        return false;
+      }
     }
 
     function renderForm(level, isAdmin) {
@@ -471,6 +495,8 @@
           '对方领取后这张谱面就归他所有，你将无法再编辑、替换资源或删除它。'
         )) return;
 
+        if (!await ensureElevated(`为「${level.levelName}」生成转让码`)) return;
+
         hideBox(status);
         generate.disabled = true;
         generate.textContent = '生成中…';
@@ -527,6 +553,8 @@
       });
 
       remove.addEventListener('click', async () => {
+        if (!await ensureElevated(`删除「${level.levelName}」`)) return;
+
         remove.disabled = true;
         remove.textContent = '删除中…';
         try {
