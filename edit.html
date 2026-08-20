@@ -32,6 +32,7 @@
     import { getLevel, updateLevel, deleteLevel } from './js/levels.js';
     import { getMyProfile } from './js/users.js';
     import { el, clear, showBox, hideBox } from './js/ui.js';
+    import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
@@ -194,7 +195,80 @@
       });
 
       content.append(form);
+      content.append(resourceSection(level, isAdmin));
       content.append(dangerZone(level));
+    }
+
+    /**
+     * 逐个资源替换。后端的五个 *FileId 都是独立可选的，所以这里一次只换一样，
+     * 不用像客户端那样凑齐整个目录。
+     */
+    function resourceSection(level, isAdmin) {
+      const box = el('div', { class: 'resource-section' },
+        el('h2', { class: 'section-title' }, '替换资源'));
+
+      if (!isAdmin) {
+        box.append(el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
+          '换任何一项都会让谱面重新进入审核，并让已下载的玩家重新下载。'));
+      }
+
+      const rows = el('div', { class: 'resource-list' });
+
+      for (const [kind, spec] of Object.entries(RESOURCE_KINDS)) {
+        const picker = el('input', { type: 'file', accept: spec.accept, hidden: true });
+        const choose = el('button', { class: 'button small', type: 'button' }, '选择文件');
+        const chosen = el('span', { class: 'resource-file' }, '未选择');
+        const apply = el('button', { class: 'button small', type: 'button', disabled: true }, '替换');
+        const status = el('div', { class: 'resource-status' });
+
+        choose.addEventListener('click', () => picker.click());
+        picker.addEventListener('change', () => {
+          const file = picker.files[0];
+          chosen.textContent = file ? `${file.name}（${formatSize(file.size)}）` : '未选择';
+          apply.disabled = !file;
+          status.textContent = '';
+        });
+
+        apply.addEventListener('click', async () => {
+          const file = picker.files[0];
+          if (!file) return;
+          if (spec.warn && !window.confirm(`${spec.warn}\n\n确定要替换${spec.label}吗？`)) return;
+
+          apply.disabled = true;
+          choose.disabled = true;
+          try {
+            const patch = await uploadResource(kind, file, text => { status.textContent = text; });
+            await updateLevel(level.id, patch);
+            status.textContent = isAdmin ? '已替换。' : '已替换，谱面重新进入审核。';
+            status.className = 'resource-status is-done';
+            picker.value = '';
+            chosen.textContent = '未选择';
+          } catch (error) {
+            status.textContent = describeError(error);
+            status.className = 'resource-status is-error';
+            apply.disabled = false;
+          } finally {
+            choose.disabled = false;
+          }
+        });
+
+        rows.append(el('div', { class: 'resource-row' },
+          el('div', { class: 'resource-head' },
+            el('strong', {}, spec.label),
+            el('span', { class: 'resource-hint' }, spec.hint)),
+          el('div', { class: 'resource-actions' }, choose, chosen, apply, picker),
+          status,
+        ));
+      }
+
+      box.append(rows);
+      return box;
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     }
 
     /** 删除是不可逆的，单独放一块并要求输入曲名确认。 */

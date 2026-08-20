@@ -599,6 +599,22 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 
 .launch-fallback { margin-top: 14px; }
 
+/* ---------- 逐个资源替换 ---------- */
+
+.resource-section { margin-top: 40px; }
+.resource-list { border: 1px solid var(--line); }
+.resource-row { padding: 14px 16px; }
+.resource-row + .resource-row { border-top: 1px solid var(--line); }
+.resource-head { margin-bottom: 10px; }
+.resource-head strong { display: block; font-size: 14px; font-weight: 600; }
+.resource-hint { display: block; margin-top: 3px; color: var(--faint); font-size: 12.5px; line-height: 1.55; }
+.resource-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.resource-file { flex: 1; min-width: 0; color: var(--faint); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resource-status { margin-top: 8px; color: var(--muted); font-size: 12.5px; min-height: 0; }
+.resource-status:empty { display: none; }
+.resource-status.is-done { color: var(--text); }
+.resource-status.is-error { color: var(--danger); }
+
 /* 危险操作区：删除不可逆，视觉上要和普通表单区分开 */
 .danger-zone { margin-top: 48px; }
 .danger-zone .section-title { color: var(--danger); border-bottom-color: rgba(255, 90, 95, .3); }
