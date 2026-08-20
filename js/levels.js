@@ -105,9 +105,14 @@ export function acceptCollaboration(levelId) {
   return post(`/api/levels/${levelId}/collaborators/accept`);
 }
 
-/** 我收到的、还没确认的挂名邀请。 */
-export function getPendingCollaborations() {
-  return get('/api/levels/collaborations/pending');
+/**
+ * 我收到的、还没确认的挂名邀请。分页包装，空时是
+ * { items: [], totalCount: 0, ... } 而不是 null 或裸数组。
+ *
+ * @returns {Promise<{items: object[], totalCount: number, page: number, pageSize: number}>}
+ */
+export function getPendingCollaborations({ page = 1, pageSize = 20 } = {}) {
+  return get(`/api/levels/collaborations/pending?page=${page}&pageSize=${pageSize}`);
 }
 
 // ---------- 谱面所有权转让 ----------

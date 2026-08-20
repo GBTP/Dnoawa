@@ -708,7 +708,7 @@
         return;   // 拿不到就当没有，不打扰
       }
 
-      const items = result?.items ?? result ?? [];
+      const items = result.items;
       if (!items.length) return;
 
       const box = el('section', { class: 'pending-collabs' },
@@ -765,6 +765,11 @@
           status,
         );
         box.append(row);
+      }
+
+      if (result.totalCount > items.length) {
+        box.append(el('p', { class: 'result-meta', style: 'margin-top:10px' },
+          `共 ${result.totalCount} 条邀请，这里显示最近 ${items.length} 条`));
       }
 
       // 插在谱面区之前
