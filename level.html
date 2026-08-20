@@ -312,8 +312,14 @@
         return;
       }
 
+      // "我的最佳在不在这 100 名里"要直接查榜单，不能用 mine.rank 推算——
+      // 两个端点算 rank 的方式不一样：榜单是 startRank + i（按排序位置数下来），
+      // my-best 是 CountAsync(Score > 我的分) + 1（同分并列）。同分时两者给出的
+      // 名次不同，拿 my-best 的名次去和榜单长度比会误判。
+      const onBoard = mine ? result.items.some(item => item.userId === mine.userId) : false;
+
       // 自己的成绩固定在顶部，不用在榜里翻
-      if (mine) box.append(myScoreRow(mine, id));
+      if (mine) box.append(myScoreRow(mine, id, onBoard, result.items.length));
 
       const scroller = el('div', { class: 'board-scroll' });
       const board = el('div', { class: 'board' });
@@ -329,8 +335,8 @@
           ? `共 ${result.totalCount} 条成绩，显示前 ${result.items.length} 名`
           : `共 ${result.items.length} 条成绩`));
 
-      // 排名在 100 名之外时给个入口，跳到自己周围那一段
-      if (mine && mine.rank > result.items.length) {
+      // 不在这 100 名里时给个入口，跳到自己周围那一段
+      if (mine && !onBoard) {
         const jump = el('button', { class: 'button small', type: 'button' }, '看我附近的排名');
         jump.addEventListener('click', () => loadAroundMe(id, box, mine));
         foot.append(jump);
@@ -363,7 +369,8 @@
         return;
       }
 
-      box.append(myScoreRow(result.myScore ?? mine, id));
+      // around-me 的 items 是以我为中心的，我必定在里面，不用提示"未上榜"
+      box.append(myScoreRow(result.myScore ?? mine, id, true));
 
       const scroller = el('div', { class: 'board-scroll' });
       const board = el('div', { class: 'board' });
@@ -399,9 +406,16 @@
       );
     }
 
-    /** 固定在榜单上方的自己那条。 */
-    function myScoreRow(score, levelId) {
+    /**
+     * 固定在榜单上方的自己那条。
+     *
+     * @param {boolean} [onBoard] 是否出现在下方榜单里。不在的话明说一句，
+     *   否则用户看到自己的名次却在榜里找不到人，会以为界面坏了。
+     * @param {number} [boardSize] 榜单实际显示了多少条
+     */
+    function myScoreRow(score, levelId, onBoard, boardSize) {
       const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
+
       return el('div', { class: 'my-score' },
         el('span', { class: 'label' }, '我的成绩'),
         el('div', { class: 'my-score-body' },
@@ -411,6 +425,9 @@
           el('span', { class: 'my-judge num' },
             `${score.maxPureCount}/${score.pureCount}/${score.farCount}/${score.lostCount}`),
         ),
+        onBoard === false && boardSize
+          ? el('p', { class: 'my-note' }, `未进入下方的前 ${boardSize} 名`)
+          : null,
       );
     }
 

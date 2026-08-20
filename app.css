@@ -668,6 +668,7 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .my-rank { color: var(--muted); font-size: 14px; }
 .my-value { font-size: 19px; font-variant-numeric: tabular-nums; }
 .my-judge { margin-left: auto; color: var(--faint); font-size: 12px; }
+.my-note { margin: 8px 0 0; color: var(--gold); font-size: 12px; }
 
 .board-foot {
   display: flex;
