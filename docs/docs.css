@@ -234,7 +234,8 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar) + 24px); 
 /* ---------- 截图 ---------- */
 
 .doc-shot { margin: 22px 0 0; }
-.doc-shot img { width: 100%; border: 1px solid var(--line); }
+.doc-shot img { width: 100%; height: auto; border: 1px solid var(--line); transition: opacity .15s var(--ease); }
+.doc-shot-link:hover img { opacity: .88; }
 .doc-shot figcaption { margin-top: 8px; color: var(--faint); font-size: 12.5px; }
 .doc-shot-link { display: block; text-decoration: none; }
 
