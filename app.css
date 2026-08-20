@@ -837,6 +837,86 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .profile-edit[hidden] { display: none; }
 .avatar-pick { display: flex; align-items: center; gap: 12px; }
 
+/* ---------- 用户数据（身份）管理 ---------- */
+
+.profiles-section { margin-top: 40px; }
+.profile-switch-hint { color: var(--faint); }
+
+.profile-list { border: 1px solid var(--line); }
+.profile-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+}
+.profile-row + .profile-row,
+.profile-manage + .profile-row { border-top: 1px solid var(--line); }
+.profile-row.is-current { background: rgba(255, 255, 255, .04); }
+
+.profile-info { flex: 1 1 200px; min-width: 0; }
+.profile-info strong { display: block; font-size: 14.5px; font-weight: 600; }
+.profile-info span { display: block; margin-top: 2px; color: var(--faint); font-size: 12.5px; }
+.current-tag { color: var(--text) !important; }
+.transfer-tag { color: var(--gold) !important; }
+.profile-row-actions { display: flex; gap: 6px; }
+
+.profile-manage {
+  padding: 16px 15px;
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, .24);
+}
+.manage-block + .manage-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.manage-block > .label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.manage-block .hint { margin: 0 0 10px; }
+
+.profiles-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+.profiles-foot .button { margin-left: 0; }
+.profiles-foot span { margin-right: auto; }
+
+.inline-panel {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  max-width: 460px;
+}
+
+/* 代传引导。转让走的是整个身份，这一条不说清楚会有人把主号送出去 */
+.transfer-guide {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+}
+.transfer-guide summary {
+  padding: 11px 15px;
+  color: var(--muted);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.transfer-guide summary:hover { color: var(--text); }
+.transfer-guide[open] summary { border-bottom: 1px solid var(--line); }
+.transfer-guide-body { padding: 15px; font-size: 13.5px; line-height: 1.7; }
+.transfer-guide-body p { margin: 0 0 8px; color: var(--muted); }
+.transfer-guide-body strong { color: var(--text); }
+.transfer-guide-body ol { margin: 8px 0; padding-left: 20px; color: var(--muted); }
+.transfer-guide-body li { margin-bottom: 4px; }
+.guide-warn { color: var(--gold) !important; }
+
 /* ---------- 最近游玩 ---------- */
 
 .plays { border: 1px solid var(--line); }

@@ -7,7 +7,7 @@
  * 这个时间窗必须在界面上讲清楚，否则用户注册完关掉页面就白注册了。
  */
 
-import { post, get, saveSession } from './api.js';
+import { post, get, saveSession, setAccountToken } from './api.js';
 
 /** 后端 ChangePasswordRequest.NewPassword 上是 [MinLength(8)]，前端先挡一道。 */
 export const MIN_PASSWORD_LENGTH = 8;
@@ -49,10 +49,17 @@ export async function login(email, password) {
     redirectOnUnauthorized: false,
   });
 
+  // token / nickname / avatarUrl 指的是"上次用的那个身份"，字段名为兼容老客户端保留
   saveSession(result.token, {
     nickname: result.nickname,
     avatarUrl: result.avatarUrl,
+    activeProfileId: result.activeProfileId,
+    profileCount: result.profiles?.length ?? 1,
   });
+
+  // 登录响应直接带了 accountToken，省一次 elevate。只放内存，刷新就没了。
+  if (result.accountToken) setAccountToken(result.accountToken);
+
   return result;
 }
 

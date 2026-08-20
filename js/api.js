@@ -41,6 +41,18 @@ const TOKEN_KEY = 'anoawa.token';
 const PROFILE_KEY = 'anoawa.profile';
 const LOGIN_PAGE = 'login.html';
 
+/**
+ * accountToken **只放内存，绝不落盘**。
+ *
+ * 后端把它和 profileToken 分成两张，理由是隐私而不是权限：账号级端点的每个响应
+ * 都在回答"这个账号名下有哪些身份"，那正是多个小号之间唯一可关联的信息。
+ * profileToken 常驻 localStorage 七天，被 XSS 读走只暴露那一个身份；
+ * accountToken 一旦也落盘，小号之间的关联就跟着泄露了。
+ *
+ * 代价是刷新页面后要重新 elevate（输一次密码）。这和客户端的处理一致。
+ */
+let accountToken = null;
+
 /** 请求失败。status 为 0 表示请求根本没到服务器（断网 / 被 CORS 拦下）。 */
 export class ApiError extends Error {
   constructor(message, status = 0, retryAfterSeconds = null) {
@@ -60,6 +72,24 @@ export class ApiError extends Error {
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 当前内存里的 accountToken，没有则为 null。 */
+export function getAccountToken() {
+  return accountToken;
+}
+
+export function hasAccountToken() {
+  return Boolean(accountToken);
+}
+
+/** 登录或 elevate 之后存起来。有效期 1 小时，过期由请求侧的 401 发现。 */
+export function setAccountToken(token) {
+  accountToken = token || null;
+}
+
+export function clearAccountToken() {
+  accountToken = null;
 }
 
 export function isLoggedIn() {
@@ -83,6 +113,7 @@ export function getProfile() {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(PROFILE_KEY);
+  accountToken = null;
 }
 
 /**
@@ -109,6 +140,9 @@ export function logout() {
  * @param {string} [options.method]
  * @param {any}    [options.body]  会被 JSON 序列化
  * @param {boolean}[options.auth]  是否带 Bearer（默认带）
+ * @param {boolean}[options.account]
+ *        用 accountToken 而不是 profileToken。账号级端点（/api/profiles/*）需要，
+ *        两者严格互斥——后端用授权策略强制，拿错了会 403 而不是静默降级。
  * @param {boolean}[options.redirectOnUnauthorized]
  *        401 时是否自动登出跳转。登录/注册这类接口必须传 false——
  *        那里的 401 是"密码错了"，不是"会话过期"，跳转会把错误提示一起冲掉。
@@ -118,6 +152,7 @@ export async function request(path, options = {}) {
     method = 'GET',
     body,
     auth = true,
+    account = false,
     redirectOnUnauthorized = true,
     signal,
   } = options;
@@ -125,7 +160,7 @@ export async function request(path, options = {}) {
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const token = auth ? getToken() : null;
+  const token = auth ? (account ? accountToken : getToken()) : null;
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let response;
@@ -148,6 +183,13 @@ export async function request(path, options = {}) {
   const payload = await readBody(response);
 
   if (response.ok) return payload;
+
+  // accountToken 只有 1 小时，过期是常态。这时候不能清 profileToken 把人踢出去，
+  // 只要清掉账号凭据、让调用方重新 elevate（输一次密码）即可。
+  if (response.status === 401 && account) {
+    accountToken = null;
+    throw new ApiError('账号凭据已过期，请重新验证密码', 401);
+  }
 
   if (response.status === 401 && auth && redirectOnUnauthorized) {
     // token 过期、改过密码、被撤销管理员、账号已注销——本地凭据已经没用了。

@@ -100,10 +100,15 @@
 
     document.getElementById('logout').addEventListener('click', logout);
 
-    const nickname = getProfile().nickname;
+    const stored = getProfile();
     const greeting = document.getElementById('greeting');
-    if (nickname) {
-      greeting.append('欢迎回来，', el('a', { href: 'user.html' }, nickname));
+    if (stored.nickname) {
+      greeting.append('欢迎回来，', el('a', { href: 'user.html' }, stored.nickname));
+      // 只有真的有多个身份时才提这回事——单身份用户不需要知道这个概念
+      if (stored.profileCount > 1) {
+        greeting.append(el('span', { class: 'profile-switch-hint' },
+          ' · ', el('a', { href: 'user.html' }, '切换身份')));
+      }
     } else {
       greeting.textContent = '浏览社区上传的谱面';
     }

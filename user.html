@@ -33,6 +33,10 @@
     } from './js/api.js';
     import { deleteAccount, requestVerificationCode } from './js/auth.js';
     import {
+      elevate, needsElevate, listProfiles, createProfile, issueProfileToken,
+      deleteProfile, createTransfer, revokeTransfer, claimTransfer,
+    } from './js/profiles.js';
+    import {
       getMyProfile, getPublicUser, updateProfile,
       getMyLevels, getUserLevels, getRecentPlays,
     } from './js/users.js';
@@ -41,7 +45,7 @@
     import { uploadFile } from './js/tus.js';
     import { PRESET, processImage } from './js/media.js';
     import {
-      el, clear, formatDate, displayName, showBox, hideBox, avatarImage,
+      el, clear, formatDate, displayName, showBox, hideBox, avatarImage, commandBlock,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -123,7 +127,7 @@
       const header = el('section', { class: 'profile' }, avatar, meta);
       if (isSelf) header.append(editPanel(profile));
       content.append(header);
-      if (isSelf) content.append(deletePanel(profile));
+      if (isSelf) content.append(profilesPanel(profile));
 
       content.append(
         el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
@@ -218,6 +222,333 @@
       );
 
       return el('div', { class: 'profile-actions' }, toggle, box);
+    }
+
+    /**
+     * 用户数据（身份）管理。
+     *
+     * 一个账号可以有多个身份。这些端点全部收 accountToken，需要先用密码 elevate；
+     * accountToken 只放内存（1 小时），刷新页面就要重新验证。
+     */
+    function profilesPanel(profile) {
+      const box = el('section', { class: 'profiles-section' },
+        el('h2', { class: 'section-title' }, '用户数据'));
+      const body = el('div', { id: 'profiles-body' });
+      box.append(body);
+
+      renderLocked();
+
+      function renderLocked() {
+        clear(body);
+        if (!needsElevate()) return renderList();
+
+        const password = el('input', { class: 'input', type: 'password', autocomplete: 'current-password', placeholder: '账号密码' });
+        const unlock = el('button', { class: 'button', type: 'button' }, '验证');
+        const status = el('div', { class: 'callout', hidden: true });
+
+        const submit = async () => {
+          hideBox(status);
+          if (!password.value) return;
+          unlock.disabled = true;
+          unlock.textContent = '验证中…';
+          try {
+            await elevate(password.value);
+            password.value = '';
+            renderList();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            unlock.disabled = false;
+            unlock.textContent = '验证';
+          }
+        };
+        unlock.addEventListener('click', submit);
+        password.addEventListener('keydown', event => {
+          if (event.key === 'Enter') { event.preventDefault(); submit(); }
+        });
+
+        body.append(
+          el('p', { class: 'hint', style: 'margin-top:0' },
+            '一个账号可以有多个用户数据（身份），用于开小号或代传谱面。查看和管理需要再验证一次密码。'),
+          el('div', { class: 'input-row', style: 'max-width:340px;margin-top:12px' }, password, unlock),
+          status,
+        );
+      }
+
+      async function renderList() {
+        clear(body);
+        body.append(el('div', { class: 'skeleton', style: 'height:120px' }));
+
+        let data;
+        try {
+          data = await listProfiles();
+        } catch (error) {
+          clear(body);
+          // accountToken 过期会走到这，重新要求验证密码
+          if (error instanceof ApiError && error.status === 401) return renderLocked();
+          body.append(el('div', { class: 'callout error' }, describeError(error)));
+          return;
+        }
+
+        clear(body);
+        const list = el('div', { class: 'profile-list' });
+
+        for (const item of data.items) {
+          const isCurrent = item.id === profile.id;
+          const row = el('div', { class: `profile-row${isCurrent ? ' is-current' : ''}` });
+
+          const info = el('div', { class: 'profile-info' },
+            el('strong', {}, item.nickname),
+            el('span', {}, `${item.levelCount} 张谱面 · 创建于 ${formatDate(item.createdAtUtc)}`),
+          );
+          if (isCurrent) info.append(el('span', { class: 'current-tag' }, '当前使用中'));
+          if (item.hasPendingTransfer) {
+            info.append(el('span', { class: 'transfer-tag' },
+              `转让码待领取，${formatDate(item.transferExpiresAtUtc)}过期`));
+          }
+
+          const actions = el('div', { class: 'profile-row-actions' });
+          if (!isCurrent) {
+            const use = el('button', { class: 'button small', type: 'button' }, '切换到此身份');
+            use.addEventListener('click', () => switchTo(item));
+            actions.append(use);
+          }
+          const manage = el('button', { class: 'button small ghost', type: 'button' }, '管理');
+          manage.addEventListener('click', () => toggleManage(row, item, isCurrent));
+          actions.append(manage);
+
+          row.append(info, actions);
+          list.append(row);
+        }
+
+        body.append(list);
+
+        const foot = el('div', { class: 'profiles-foot' },
+          el('span', {}, `${data.items.length} / ${data.maxPerAccount} 个身份`));
+
+        if (data.items.length < data.maxPerAccount) {
+          const create = el('button', { class: 'button small', type: 'button' }, '新建身份');
+          create.addEventListener('click', () => showCreate(body));
+          foot.append(create);
+        }
+        const claim = el('button', { class: 'button small', type: 'button' }, '用转让码领取');
+        claim.addEventListener('click', () => showClaim(body));
+        foot.append(claim);
+
+        body.append(foot);
+        body.append(transferGuide());
+      }
+
+      /**
+       * 代传引导。**转让走的是整个身份**，所以必须让人明白不能用主号传完再转让——
+       * 那等于把自己的成绩、点赞和全部作品一起送出去。这条不说清楚会出事。
+       */
+      function transferGuide() {
+        return el('details', { class: 'transfer-guide' },
+          el('summary', {}, '想帮别人代传谱面？先看这里'),
+          el('div', { class: 'transfer-guide-body' },
+            el('p', {}, el('strong', {}, '转让的是整个身份，不是单张谱面。')),
+            el('p', {}, '交出去的身份会连同它名下的全部谱面、成绩、点赞一起归对方所有，你将无法再访问。'),
+            el('p', {}, el('strong', {}, '所以代传要单独建一个身份：')),
+            el('ol', {},
+              el('li', {}, '新建一个身份，昵称用作者的名字'),
+              el('li', {}, '切换到它，用它上传作者的谱面'),
+              el('li', {}, '作者注册账号后，为这个身份生成转让码给他'),
+              el('li', {}, '他在自己账号里用转让码领取'),
+            ),
+            el('p', { class: 'guide-warn' },
+              '不要用你自己常用的身份代传——转让时没法只交出那几张谱面。'),
+          ),
+        );
+      }
+
+      async function switchTo(item) {
+        if (!window.confirm(`切换到「${item.nickname}」？之后的上传和成绩都会记在这个身份下。`)) return;
+        try {
+          const result = await issueProfileToken(item.id);
+          // 换掉落盘的 profileToken，否则后续请求还是以原身份发出
+          saveSession(result.token, {
+            nickname: result.profile.nickname,
+            avatarUrl: result.profile.avatarUrl,
+            activeProfileId: result.profile.id,
+          });
+          location.reload();
+        } catch (error) {
+          alert(describeError(error));
+        }
+      }
+
+      function toggleManage(row, item, isCurrent) {
+        const existing = row.nextElementSibling;
+        if (existing?.classList.contains('profile-manage')) {
+          existing.remove();
+          return;
+        }
+        row.after(managePanel(item, isCurrent, renderList));
+      }
+
+      function showCreate(container) {
+        const nickname = el('input', { class: 'input', maxlength: '24', placeholder: '新身份的昵称' });
+        const submit = el('button', { class: 'button primary', type: 'button' }, '创建');
+        const status = el('div', { class: 'callout', hidden: true });
+        const panel = el('div', { class: 'inline-panel' },
+          el('p', { class: 'hint', style: 'margin-top:0' }, '新身份从零开始，没有谱面和成绩。'),
+          el('div', { class: 'input-row' }, nickname, submit),
+          status);
+
+        submit.addEventListener('click', async () => {
+          if (!nickname.value.trim()) return;
+          submit.disabled = true;
+          try {
+            await createProfile(nickname.value);
+            renderList();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            submit.disabled = false;
+          }
+        });
+        container.append(panel);
+        nickname.focus();
+      }
+
+      function showClaim(container) {
+        const code = el('input', { class: 'input', placeholder: '粘贴转让码' });
+        const submit = el('button', { class: 'button primary', type: 'button' }, '领取');
+        const status = el('div', { class: 'callout', hidden: true });
+        const panel = el('div', { class: 'inline-panel' },
+          el('p', { class: 'hint', style: 'margin-top:0' },
+            '领取后这个身份归你所有，它名下的谱面和成绩一并转移。'),
+          el('div', { class: 'input-row' }, code, submit),
+          status);
+
+        submit.addEventListener('click', async () => {
+          if (!code.value.trim()) return;
+          submit.disabled = true;
+          try {
+            await claimTransfer(code.value);
+            renderList();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            submit.disabled = false;
+          }
+        });
+        container.append(panel);
+        code.focus();
+      }
+
+      return box;
+    }
+
+    /**
+     * 单个身份的管理面板：转让码 + 删除。
+     *
+     * 当前正在使用的身份不能删也不能转让——把脚下的地板抽掉之后，
+     * 手里的 profileToken 就失效了。要处理它得先切到别的身份。
+     */
+    function managePanel(item, isCurrent, refresh) {
+      const box = el('div', { class: 'profile-manage' });
+      const status = el('div', { class: 'callout', hidden: true });
+
+      if (isCurrent) {
+        box.append(
+          el('p', { class: 'hint', style: 'margin-top:0' },
+            '这是你当前使用的身份，不能转让或删除。要处理它，请先切换到别的身份。'),
+        );
+        return box;
+      }
+
+      // ---------- 转让 ----------
+      const transferBox = el('div', { class: 'manage-block' },
+        el('span', { class: 'label' }, '转让给他人'));
+
+      if (item.hasPendingTransfer) {
+        const revoke = el('button', { class: 'button small', type: 'button' }, '撤销转让码');
+        revoke.addEventListener('click', async () => {
+          revoke.disabled = true;
+          try {
+            await revokeTransfer(item.id);
+            refresh();
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            revoke.disabled = false;
+          }
+        });
+        transferBox.append(
+          el('p', { class: 'hint' },
+            `已有一个待领取的转让码，${formatDate(item.transferExpiresAtUtc)}过期。撤销后可以重新生成。`),
+          revoke);
+      } else {
+        const generate = el('button', { class: 'button small', type: 'button' }, '生成转让码');
+        const codeSlot = el('div', {});
+        generate.addEventListener('click', async () => {
+          if (!window.confirm(
+            `生成「${item.nickname}」的转让码？\n\n拿到码的人可以把这个身份连同它的全部谱面、成绩、点赞领走，你将无法再访问。`
+          )) return;
+          generate.disabled = true;
+          try {
+            const result = await createTransfer(item.id);
+            clear(codeSlot);
+            // 明文只在这次响应里出现一次，之后再列身份只能看到有没有待领取的码
+            codeSlot.append(commandBlock(result.code,
+              `把这串码发给对方，${formatDate(result.expiresAtUtc)}过期。它只显示这一次，关掉就看不到了。`));
+          } catch (error) {
+            showBox(status, describeError(error), 'error');
+            generate.disabled = false;
+          }
+        });
+        transferBox.append(
+          el('p', { class: 'hint' }, '生成一串码交给对方，对方在自己账号里领取后，这个身份就归他了。'),
+          generate, codeSlot);
+      }
+
+      // ---------- 删除 ----------
+      const scopes = [
+        ['deleteLevels', '这个身份上传的谱面'],
+        ['deleteLikes', '这个身份的点赞'],
+        ['deletePlayRecords', '这个身份的成绩与游玩记录'],
+      ];
+      const checks = {};
+      const scopeList = el('div', { class: 'scope-list' });
+      for (const [key, label] of scopes) {
+        const input = el('input', { type: 'checkbox' });
+        checks[key] = input;
+        scopeList.append(el('label', { class: 'scope-item' }, input,
+          el('div', {}, el('strong', {}, `同时删除${label}`))));
+      }
+
+      const confirmName = el('input', { class: 'input', placeholder: `输入「${item.nickname}」以确认` });
+      const remove = el('button', { class: 'button danger', type: 'button', disabled: true }, '删除这个身份');
+      confirmName.addEventListener('input', () => {
+        remove.disabled = confirmName.value.trim() !== item.nickname;
+      });
+      remove.addEventListener('click', async () => {
+        remove.disabled = true;
+        remove.textContent = '删除中…';
+        try {
+          await deleteProfile(item.id, {
+            deleteLevels: checks.deleteLevels.checked,
+            deleteLikes: checks.deleteLikes.checked,
+            deletePlayRecords: checks.deletePlayRecords.checked,
+          });
+          refresh();
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          remove.disabled = false;
+          remove.textContent = '删除这个身份';
+        }
+      });
+
+      box.append(
+        transferBox,
+        el('div', { class: 'manage-block' },
+          el('span', { class: 'label' }, '删除'),
+          el('p', { class: 'hint' },
+            '默认保留内容，改挂到「已注销用户」名下。勾选下面的项则一并删除。'),
+          scopeList,
+          el('div', { class: 'field', style: 'margin-top:12px' }, confirmName),
+          remove),
+        status,
+      );
+      return box;
     }
 
     /**
