@@ -52,6 +52,13 @@
       <p class="intro-note">浏览与下载社区谱面需要登录账号。</p>
     </section>
 
+    <div class="tabs" role="tablist" aria-label="浏览方式">
+      <button class="tab" role="tab" id="tab-all" aria-selected="true">全部谱面</button>
+      <button class="tab" role="tab" id="tab-hot" aria-selected="false">热门</button>
+    </div>
+
+    <div class="hot-periods" id="hot-periods" hidden role="group" aria-label="统计周期"></div>
+
     <form class="toolbar" id="toolbar" role="search">
       <input class="input search" type="search" id="search" name="search"
              placeholder="搜索曲名、曲师、谱师、画师或标签" autocomplete="off">
@@ -80,10 +87,10 @@
 
   <script type="module">
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
-    import { listLevels, SORT_OPTIONS, PAGE_SIZE } from './js/levels.js';
+    import { listLevels, getHotLevels, SORT_OPTIONS, PAGE_SIZE, HOT_PERIODS } from './js/levels.js';
     import { levelCard } from './js/level-card.js';
     import {
-      el, showBox, hideBox, clear,
+      el, showBox, hideBox, clear, formatCount,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -118,11 +125,50 @@
       sortSelect.append(el('option', { value: option.value }, option.label));
     }
 
+    const tabAll = document.getElementById('tab-all');
+    const tabHot = document.getElementById('tab-hot');
+    const periodBox = document.getElementById('hot-periods');
+    const toolbar = document.getElementById('toolbar');
+
     // 状态放 URL 里：刷新、前进后退、分享链接都能还原同一屏结果
     const state = readState();
     searchInput.value = state.search;
     sortSelect.value = state.sortBy;
     orderSelect.value = state.sortOrder;
+
+    for (const period of HOT_PERIODS) {
+      const button = el('button', {
+        class: 'period', type: 'button', dataset: { period: period.value },
+      }, period.label);
+      button.addEventListener('click', () => {
+        state.period = period.value;
+        load();
+      });
+      periodBox.append(button);
+    }
+
+    /** 全部谱面和热门是两套不同的取数与呈现，由 load() 按 state.view 分派。 */
+    function paintView() {
+      const isHot = state.view === 'hot';
+      tabAll.setAttribute('aria-selected', String(!isHot));
+      tabHot.setAttribute('aria-selected', String(isHot));
+      periodBox.hidden = !isHot;
+      // 热榜是后端算好的固定 Top 50，搜索、排序和分页都不适用
+      toolbar.hidden = isHot;
+      for (const button of periodBox.children) {
+        button.classList.toggle('current', button.dataset.period === state.period);
+      }
+    }
+
+    function selectView(view) {
+      if (state.view === view) return;
+      state.view = view;
+      state.page = 1;
+      load();
+    }
+
+    tabAll.addEventListener('click', () => selectView('all'));
+    tabHot.addEventListener('click', () => selectView('hot'));
 
     form.addEventListener('submit', event => {
       event.preventDefault();
@@ -174,24 +220,61 @@
     async function load({ push = true } = {}) {
       const seq = ++requestSeq;
       hideBox(errorBox);
+      paintView();
       renderSkeletons();
       pager.hidden = true;
       meta.textContent = '';
 
       if (push) writeState();
 
-      let result;
       try {
-        result = await listLevels({ ...state, pageSize: PAGE_SIZE });
+        if (state.view === 'hot') {
+          const result = await getHotLevels(state.period);
+          if (seq !== requestSeq) return;
+          renderHot(result);
+        } else {
+          const result = await listLevels({ ...state, pageSize: PAGE_SIZE });
+          if (seq !== requestSeq) return;
+          render(result);
+        }
       } catch (error) {
         if (seq !== requestSeq) return;   // 已经有更新的请求发出去了，丢弃这次的结果
         clear(grid);
         showBox(errorBox, describeError(error), 'error');
+      }
+    }
+
+    /**
+     * 热榜。后端固定返回 Top 50、不分页，所以不用分页器。
+     *
+     * item.playCount 是**所选周期内**的次数，和 item.level.playCount（历史累计）
+     * 不是一回事——这里显示的是前者，卡片自己显示的是后者。
+     */
+    function renderHot(result) {
+      clear(grid);
+
+      if (!result.items.length) {
+        grid.append(el('div', { class: 'empty', style: 'grid-column:1/-1' },
+          el('h3', {}, '这个周期还没有游玩记录'),
+          el('p', {}, '换个周期看看，或者去全部谱面里逛逛。'),
+        ));
         return;
       }
-      if (seq !== requestSeq) return;
 
-      render(result);
+      result.items.forEach((item, index) => {
+        const card = levelCard(item.level);
+        // 名次和周期内次数是热榜特有的信息，挂在卡片外层
+        grid.append(el('div', { class: 'hot-slot' },
+          el('span', { class: 'hot-rank num' }, `#${index + 1}`),
+          card,
+          el('span', { class: 'hot-plays' },
+            el('span', { class: 'num' }, formatCount(item.playCount)),
+            ' 次游玩'),
+        ));
+      });
+
+      const label = HOT_PERIODS.find(p => p.value === state.period)?.label ?? '本周';
+      meta.textContent = `${label}热度前 ${result.items.length} 名 · 按周期内游玩次数与曲目时长加权`;
     }
 
     function render(result) {
@@ -221,8 +304,10 @@
 
     function renderSkeletons() {
       clear(grid);
-      // 数量与每页条数一致，加载完成时网格形状不会跳
-      for (let i = 0; i < PAGE_SIZE; i += 1) {
+      // 数量对齐实际会返回多少：全部谱面每页 20，热榜固定 Top 50。
+      // 不一致的话加载完成时网格高度会跳一下。
+      const count = state.view === 'hot' ? 50 : PAGE_SIZE;
+      for (let i = 0; i < count; i += 1) {
         grid.append(el('div', { class: 'skeleton skeleton-card' }));
       }
     }
@@ -240,7 +325,11 @@
     function readState() {
       const params = new URLSearchParams(location.search);
       const sortBy = params.get('sort') || 'created';
+      const period = params.get('period') || 'week';
       return {
+        view: params.get('view') === 'hot' ? 'hot' : 'all',
+        // 后端 NormalizePeriod 对无法识别的值有自己的兜底，这里也挡一道保持 UI 一致
+        period: HOT_PERIODS.some(p => p.value === period) ? period : 'week',
         search: params.get('q') || '',
         page: Math.max(1, Number.parseInt(params.get('page') || '1', 10) || 1),
         // 后端对无法识别的 sortBy 会静默落回 created，这里先挡一道，免得 UI 显示的和实际排序不一致
@@ -252,6 +341,13 @@
 
     function writeState() {
       const params = new URLSearchParams();
+      if (state.view === 'hot') {
+        params.set('view', 'hot');
+        if (state.period !== 'week') params.set('period', state.period);
+        const query = params.toString();
+        history.pushState(null, '', query ? `?${query}` : location.pathname);
+        return;
+      }
       if (state.search.trim()) params.set('q', state.search.trim());
       if (state.page > 1) params.set('page', String(state.page));
       if (state.sortBy !== 'created') params.set('sort', state.sortBy);

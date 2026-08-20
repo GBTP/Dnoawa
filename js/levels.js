@@ -83,9 +83,24 @@ export function getLeaderboard(id, { page = 1, pageSize = 20 } = {}) {
   return get(`/api/levels/${id}/leaderboard?page=${page}&pageSize=${pageSize}`);
 }
 
-/** 热门榜，固定返回 Top 50，不接受条数参数。 */
+/** 后端 HotLeaderboardCache.NormalizePeriod 认得的三个周期。 */
+export const HOT_PERIODS = [
+  { value: 'day', label: '今日' },
+  { value: 'week', label: '本周' },
+  { value: 'month', label: '本月' },
+];
+
+/**
+ * 热门榜。**固定返回 Top 50，端点不接受条数参数**（老客户端传 ?count= 会被忽略）。
+ *
+ * 热度 = 周期内游玩次数 × clamp(时长, 30, 240)，长曲的一次游玩权重更高，
+ * 但时长因子只在 30–240 秒区间内线性生效。
+ *
+ * 返回 { period, items: [{ level, playCount }] }。注意 item.playCount 是**周期内**
+ * 的次数，和嵌套的 level.playCount（历史累计）不是一回事，展示时别混。
+ */
 export function getHotLevels(period = 'week') {
-  return get(`/api/leaderboard/hot?period=${period}`);
+  return get(`/api/leaderboard/hot?period=${encodeURIComponent(period)}`);
 }
 
 /** ComboState → 展示文案。取值见 ScoreService.SubmitScoreAsync。 */
