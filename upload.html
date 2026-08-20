@@ -66,6 +66,7 @@
           <div class="field">
             <label for="charterName">谱师</label>
             <input class="input" id="charterName" required maxlength="80">
+            <p class="hint" id="charter-hint"></p>
           </div>
           <div class="field">
             <label for="artistName">曲绘</label>
@@ -131,6 +132,14 @@
           <p class="hint">不勾选的话，下载者只能游玩，不能再导出成可编辑的源文件。</p>
         </div>
 
+        <div class="callout" id="attribution-note">
+          <strong>谱面会记在你当前的身份名下。</strong>
+          <p>社区里显示的上传者是「<span id="current-identity">你</span>」，与上面填的「谱师」是两回事——
+             前者是谁传的，后者是谁做的。</p>
+          <p>帮别人代传时，建议<a href="user.html">单独建一个身份</a>用作者的名字来传，
+             日后可以把整个身份转让给作者本人。用自己的常用身份代传的话，名义上会一直挂在你名下。</p>
+        </div>
+
         <div class="callout">
           <strong>网页上传的谱面不加密。</strong>
           <p>谱面加密是客户端的功能，网页这边做不了，所以 <code>.aff</code> 对拿到谱面包的人是明文可读的。介意的话请用客户端上传。</p>
@@ -147,7 +156,7 @@
   </main>
 
   <script type="module">
-    import { requireLogin, describeError, logout } from './js/api.js';
+    import { requireLogin, describeError, logout, getProfile } from './js/api.js';
     import {
       scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
     } from './js/upload.js';
@@ -172,6 +181,26 @@
     let difficultyIndex = 0;
     let decodedBuffer = null;
     let rangeEditor = null;
+
+    // 谱师名和当前身份不一致时，就地提醒一句——这是最容易意识到
+    // "我传的不是自己作品"的时刻
+    const identityName = getProfile().nickname || '当前身份';
+    document.getElementById('current-identity').textContent = identityName;
+
+    const charterInput = document.getElementById('charterName');
+    const charterHint = document.getElementById('charter-hint');
+    const paintCharterHint = () => {
+      const charter = charterInput.value.trim();
+      if (charter && charter !== identityName) {
+        charterHint.textContent =
+          `这张谱面会显示为由「${identityName}」上传、由「${charter}」制作。代传请看下方说明。`;
+        charterHint.classList.add('is-warn');
+      } else {
+        charterHint.textContent = '';
+        charterHint.classList.remove('is-warn');
+      }
+    };
+    charterInput.addEventListener('input', paintCharterHint);
 
     // ---------- 选文件 ----------
 
@@ -447,6 +476,7 @@
 
       setThemeColor(prefill.themeColor);
       renderTitleOptions(prefill.titleOptions);
+      paintCharterHint();
 
       // 两者都在时以 songlist 为准（信息更全），与客户端 ChartFolderImporter 一致
       const sources = [

@@ -842,6 +842,9 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .profiles-section { margin-top: 40px; }
 .profile-switch-hint { color: var(--faint); }
 
+/* 谱师名与当前身份不一致时的就地提示 */
+.hint.is-warn { color: var(--gold); }
+
 .profile-list { border: 1px solid var(--line); }
 .profile-row {
   display: flex;
