@@ -73,6 +73,47 @@ export function deleteLevel(id) {
   return del(`/api/levels/${id}`);
 }
 
+// ---------- 谱面所有权转让 ----------
+//
+// 用于多人合作时在成员之间移交谱面，也用于代传后把作品交还作者。
+// **这些端点收 profileToken**（谱面归属是身份维度的游戏内操作），
+// 不像身份转让那样需要 accountToken。
+
+/**
+ * 生成一次性转让码。**明文只在这次响应里出现**，库里存的是 SHA-256，
+ * 任何接口都取不回来。
+ *
+ * 重复调用会作废上一个未领取的码——否则先后发出去的两张码都能兑换，
+ * 发起方以为撤销了其实没有。
+ *
+ * @returns {Promise<{code: string, expiresAtUtc: string}>}
+ */
+export function createLevelTransfer(id) {
+  return post(`/api/levels/${id}/transfer`);
+}
+
+/** 撤销未被领取的转让码。 */
+export function revokeLevelTransfer(id) {
+  return del(`/api/levels/${id}/transfer`);
+}
+
+/**
+ * 凭码查看要接手的是哪张谱面，**不改变任何状态**。
+ * 拿到一串码的人不该只能盲领，界面上必须先预览再确认。
+ * @returns {Promise<object>} LevelResponse
+ */
+export function previewLevelTransfer(code) {
+  return get(`/api/levels/transfer?code=${encodeURIComponent(code.trim())}`);
+}
+
+/**
+ * 凭码接手谱面。**成功后原主人对它的编辑/删除权限立即消失。**
+ * @returns {Promise<object>} LevelResponse
+ */
+export function claimLevelTransfer(code) {
+  return post('/api/levels/claim', { code: code.trim() });
+}
+
 /** 切换点赞，返回切换后的状态。 */
 export function toggleLike(id) {
   return post(`/api/levels/${id}/like`);

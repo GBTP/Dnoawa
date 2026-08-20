@@ -731,6 +731,15 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 
 .resource-extra:empty { display: none; }
 
+/* ---------- 转让所有权 ---------- */
+
+.transfer-section { margin-top: 40px; }
+
+/* 领取页的预览：卡片本身复用谱面库那套，居中放一张 */
+.claim-preview { margin-top: 18px; }
+.claim-card { max-width: 200px; margin-top: 10px; }
+.claim-owner { margin: 12px 0 0; color: var(--faint); font-size: 13px; }
+
 /* 危险操作区：删除不可逆，视觉上要和普通表单区分开 */
 .danger-zone { margin-top: 48px; }
 .danger-zone .section-title { color: var(--danger); border-bottom-color: rgba(255, 90, 95, .3); }

@@ -131,6 +131,11 @@
 
       content.append(
         el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
+        isSelf
+          ? el('p', { class: 'result-meta' },
+              '有别人给你的转让码？',
+              el('a', { href: 'claim.html' }, '领取一张谱面 →'))
+          : null,
         el('div', { class: 'level-grid', id: 'levels' }),
         el('h2', { class: 'section-title' }, '最近游玩'),
         el('div', { id: 'plays' }, el('div', { class: 'skeleton', style: 'height:90px' })),
@@ -359,6 +364,9 @@
             el('p', { class: 'guide-warn' },
               '不要用常用身份代传，哪怕只有一张——转让走的是整个身份，' +
               '到时候没法只把那几张交出去。'),
+            el('p', {},
+              '如果只是多人合作时要把某一张谱面移交给同伴，用谱面自己的转让功能就行' +
+              '（编辑页 → 转让所有权），不用动整个身份。'),
           ),
         );
       }

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>领取谱面 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link" href="get.html">获取游戏</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page page-narrow" style="max-width:560px">
+    <div class="page-head">
+      <h1>领取谱面</h1>
+      <p>输入别人给你的转让码，接手一张谱面的所有权。</p>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label for="code">转让码</label>
+        <div class="input-row">
+          <input class="input" id="code" placeholder="粘贴转让码" autocomplete="off">
+          <button class="button" type="button" id="check">查看</button>
+        </div>
+        <p class="hint">先看清楚是哪张谱面，确认后再领取。</p>
+      </div>
+
+      <div class="callout error" id="error" hidden></div>
+      <div id="preview"></div>
+    </div>
+
+    <p class="form-foot">
+      要转让自己的谱面？到<a href="user.html">我的空间</a>找到那张谱面，进入编辑页生成转让码。
+    </p>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout } from './js/api.js';
+    import { previewLevelTransfer, claimLevelTransfer } from './js/levels.js';
+    import { levelCard } from './js/level-card.js';
+    import { el, clear, showBox, hideBox, displayName } from './js/ui.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+    document.getElementById('logout').addEventListener('click', logout);
+
+    const codeInput = document.getElementById('code');
+    const checkButton = document.getElementById('check');
+    const errorBox = document.getElementById('error');
+    const previewBox = document.getElementById('preview');
+
+    // 链接里带码时直接填上，省一次粘贴
+    const preset = new URLSearchParams(location.search).get('code');
+    if (preset) codeInput.value = preset;
+
+    checkButton.addEventListener('click', check);
+    codeInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); check(); }
+    });
+    if (preset) check();
+
+    /**
+     * 先预览再领取。后端专门为此提供了不改状态的 GET /api/levels/transfer?code=，
+     * 理由是"拿到一串码的人不该只能盲领"——界面上必须用起来。
+     */
+    async function check() {
+      hideBox(errorBox);
+      clear(previewBox);
+
+      const code = codeInput.value.trim();
+      if (!code) return;
+
+      checkButton.disabled = true;
+      checkButton.textContent = '查询中…';
+      try {
+        const level = await previewLevelTransfer(code);
+        renderPreview(level, code);
+      } catch (error) {
+        showBox(errorBox, describeError(error), 'error');
+      } finally {
+        checkButton.disabled = false;
+        checkButton.textContent = '查看';
+      }
+    }
+
+    function renderPreview(level, code) {
+      const card = levelCard(level);
+      // 预览阶段不该点进详情把码弄丢
+      card.removeAttribute('href');
+      card.style.cursor = 'default';
+
+      const confirm = el('button', { class: 'button primary block', type: 'button' }, '接手这张谱面');
+      const status = el('div', { class: 'callout', hidden: true });
+
+      confirm.addEventListener('click', async () => {
+        if (!window.confirm(
+          `接手「${level.levelName}」？\n\n` +
+          '之后这张谱面归你所有，原主人将无法再编辑或删除它。'
+        )) return;
+
+        confirm.disabled = true;
+        confirm.textContent = '领取中…';
+        try {
+          const claimed = await claimLevelTransfer(code);
+          clear(previewBox);
+          previewBox.append(el('div', { class: 'callout success' },
+            el('strong', {}, '已接手。'),
+            el('p', {}, `「${claimed.levelName}」现在归你所有。`),
+            el('p', {},
+              el('a', { href: `level.html?id=${claimed.id}` }, '查看这张谱面 →'),
+              ' · ',
+              el('a', { href: 'user.html' }, '回到我的空间')),
+          ));
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          confirm.disabled = false;
+          confirm.textContent = '接手这张谱面';
+        }
+      });
+
+      previewBox.append(
+        el('div', { class: 'claim-preview' },
+          el('span', { class: 'eyebrow' }, '这张谱面将归你所有'),
+          el('div', { class: 'claim-card' }, card),
+          el('p', { class: 'claim-owner' },
+            '当前所有者：',
+            displayName(level.uploaderNickname, level.uploaderIsAnonymized)),
+        ),
+        el('div', { class: 'callout warning' },
+          el('strong', {}, '接手后原主人就动不了这张谱面了。'),
+          el('p', {}, '编辑、替换资源、删除的权限都会转到你手上。这个动作没有撤销。'),
+        ),
+        confirm,
+        status,
+      );
+    }
+  </script>
+</body>
+</html>

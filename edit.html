@@ -29,9 +29,12 @@
 
   <script type="module">
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
-    import { getLevel, updateLevel, deleteLevel } from './js/levels.js';
+    import {
+      getLevel, updateLevel, deleteLevel,
+      createLevelTransfer, revokeLevelTransfer,
+    } from './js/levels.js';
     import { getMyProfile } from './js/users.js';
-    import { el, clear, showBox, hideBox, commandBlock } from './js/ui.js';
+    import { el, clear, showBox, hideBox, commandBlock, formatDate } from './js/ui.js';
     import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
     import { decodeAudio, defaultPreviewRange } from './js/media.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
@@ -198,6 +201,7 @@
 
       content.append(form);
       content.append(resourceSection(level, isAdmin));
+      content.append(transferSection(level));
       content.append(dangerZone(level));
     }
 
@@ -322,6 +326,72 @@
       if (bytes < 1024) return `${bytes} B`;
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
       return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    /**
+     * 转让所有权。用于多人合作时在成员之间移交，也用于代传后交还作者。
+     *
+     * 上传者就是所有者，所以转让之后自己对这张谱面的编辑、替换、删除权限
+     * 立刻消失——文案上必须写死这一点。
+     */
+    function transferSection(level) {
+      const box = el('div', { class: 'transfer-section' },
+        el('h2', { class: 'section-title' }, '转让所有权'));
+
+      const status = el('div', { class: 'callout', hidden: true });
+      const codeSlot = el('div', {});
+
+      const generate = el('button', { class: 'button', type: 'button' }, '生成转让码');
+      const revoke = el('button', { class: 'button ghost', type: 'button' }, '撤销未领取的码');
+
+      generate.addEventListener('click', async () => {
+        if (!window.confirm(
+          `生成「${level.levelName}」的转让码？\n\n` +
+          '对方领取后这张谱面就归他所有，你将无法再编辑、替换资源或删除它。'
+        )) return;
+
+        hideBox(status);
+        generate.disabled = true;
+        generate.textContent = '生成中…';
+        try {
+          const result = await createLevelTransfer(level.id);
+          clear(codeSlot);
+          codeSlot.append(commandBlock(result.code,
+            `把这串码发给对方，${formatDate(result.expiresAtUtc)}过期。` +
+            '它只显示这一次，关掉页面就看不到了；重新生成会作废这一个。'));
+          generate.textContent = '重新生成';
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          generate.textContent = '生成转让码';
+        } finally {
+          generate.disabled = false;
+        }
+      });
+
+      revoke.addEventListener('click', async () => {
+        hideBox(status);
+        revoke.disabled = true;
+        try {
+          await revokeLevelTransfer(level.id);
+          clear(codeSlot);
+          showBox(status, '已撤销。之前发出的码不再有效。', 'success');
+          generate.textContent = '生成转让码';
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+        } finally {
+          revoke.disabled = false;
+        }
+      });
+
+      box.append(
+        el('p', { class: 'hint', style: 'margin-top:0' },
+          '生成一串码交给对方，对方领取后这张谱面就归他所有——包括编辑、替换资源和删除的权限。' +
+          '多人合作时用它在成员之间移交，代传时用它把作品交还作者。'),
+        el('div', { class: 'hero-actions', style: 'margin-top:14px' }, generate, revoke),
+        codeSlot,
+        status,
+      );
+      return box;
     }
 
     /** 删除是不可逆的，单独放一块并要求输入曲名确认。 */
