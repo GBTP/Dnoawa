@@ -18,6 +18,7 @@
         <a class="top-link" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
         <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link" href="get.html">获取游戏</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
       </nav>
@@ -251,7 +252,9 @@
         hint.append(
           el('strong', {}, '没能唤起 Anoawa。'),
           el('p', {}, '这个功能需要支持链接跳转的客户端版本，目前还在开发中。'),
-          el('p', {}, '现在可以先打开 Anoawa，在「谱面库 → 在线」里搜索这首曲子。'),
+          el('p', {}, '已经装了游戏的话，可以先打开 Anoawa，在「谱面库 → 在线」里搜索这首曲子。'),
+          // 点这个按钮的人正是最想要客户端的人，顺手给个入口
+          el('p', {}, el('a', { href: 'get.html' }, '还没有游戏？获取 Anoawa →')),
         );
         hint.hidden = false;
       }, 1400);

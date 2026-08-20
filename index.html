@@ -18,6 +18,7 @@
         <a class="top-link current" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
         <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link" href="get.html">获取游戏</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
       </nav>
@@ -42,6 +43,10 @@
     </form>
 
     <p class="result-meta" id="meta"></p>
+    <div class="callout" id="get-hint" hidden>
+      <strong>谱面要在 Anoawa 客户端里游玩。</strong>
+      <p>还没有装的话，先 <a href="get.html">获取游戏</a>；已经装了可以忽略这条。</p>
+    </div>
     <div class="callout error" id="error" hidden></div>
     <div class="level-grid" id="grid"></div>
 
@@ -118,6 +123,19 @@
       orderSelect.value = state.sortOrder;
       load({ push: false });
     });
+
+    // 客户端提示只显示给没关过它的人：老玩家不需要每次进来都被提醒一次
+    const GET_HINT_KEY = 'anoawa.getHintDismissed';
+    if (!localStorage.getItem(GET_HINT_KEY)) {
+      const hint = document.getElementById('get-hint');
+      const dismiss = el('button', { class: 'button small', type: 'button', style: 'margin-top:10px' }, '知道了');
+      dismiss.addEventListener('click', () => {
+        localStorage.setItem(GET_HINT_KEY, '1');
+        hint.hidden = true;
+      });
+      hint.append(dismiss);
+      hint.hidden = false;
+    }
 
     // ---------- 加载 ----------
 

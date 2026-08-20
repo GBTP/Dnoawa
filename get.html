@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>获取游戏 · Anoawa</title>
+  <meta name="description" content="下载 Anoawa：Android APK、iOS TestFlight 与 Windows 桌面版，以及社区群入口。">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link current" href="get.html">获取游戏</a>
+        <a class="top-link" href="docs/index.html">使用指南</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:820px">
+    <div class="page-head">
+      <h1>获取 Anoawa</h1>
+      <p>基于 Arcaea 玩法的社区音乐游戏。安装包与更新公告都在社区群内发布。</p>
+    </div>
+
+    <div class="platform-grid" id="platforms"></div>
+
+    <h2 class="section-title" id="community">社区群</h2>
+    <div class="community-box" id="community-box"></div>
+
+    <h2 class="section-title">接下来</h2>
+    <div class="next-steps">
+      <a class="next-step" href="docs/index.html">
+        <strong>使用指南</strong>
+        <span>从安装到导入谱面、联机与创作的分步教程。</span>
+      </a>
+      <a class="next-step" href="index.html">
+        <strong>社区谱面库</strong>
+        <span>浏览、试听社区上传的谱面，登录后可下载游玩。</span>
+      </a>
+    </div>
+  </main>
+
+  <script type="module">
+    import { PLATFORMS, COMMUNITY, COMMUNITY_NOTE } from './js/download.js';
+    import { el, clear } from './js/ui.js';
+
+    // 这一页刻意不要求登录：新访客就是从这儿了解怎么拿到游戏的
+    const grid = document.getElementById('platforms');
+    for (const platform of PLATFORMS) {
+      grid.append(el('div', { class: 'platform-card' },
+        el('span', { class: 'os' }, platform.os),
+        el('h3', {}, platform.title),
+        el('p', {}, platform.note),
+        el('a', {
+          class: `button ${platform.action.external ? 'primary' : ''}`,
+          href: platform.action.href,
+          target: platform.action.external ? '_blank' : null,
+          rel: platform.action.external ? 'noreferrer' : null,
+        }, platform.action.label),
+      ));
+    }
+
+    const box = document.getElementById('community-box');
+    for (const item of COMMUNITY) {
+      const value = el('span', { class: 'community-value num' }, item.value);
+      const copy = el('button', { class: 'button small', type: 'button' }, '复制');
+
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(item.value);
+          copy.textContent = '已复制';
+        } catch {
+          // 剪贴板要安全上下文和权限，失败时选中让用户自己复制
+          const range = document.createRange();
+          range.selectNodeContents(value);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          copy.textContent = '请手动复制';
+        }
+        setTimeout(() => { copy.textContent = '复制'; }, 1600);
+      });
+
+      box.append(el('div', { class: 'community-item' },
+        el('span', { class: 'community-label' }, item.label),
+        value,
+        copy,
+      ));
+    }
+    box.append(el('div', { class: 'community-item community-note' }, COMMUNITY_NOTE));
+  </script>
+</body>
+</html>
