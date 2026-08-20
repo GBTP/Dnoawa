@@ -415,6 +415,22 @@
         row.after(managePanel(item, isCurrent, renderList));
       }
 
+      /**
+       * 内联面板做成开关：不去重的话每点一次就叠一个，点五次会看到五份
+       * "新身份从零开始…"。同一时间只留一个，再点一次收起。
+       */
+      function toggleInlinePanel(container, kind, build) {
+        const existing = container.querySelector('.inline-panel');
+        const sameKind = existing?.dataset.kind === kind;
+        existing?.remove();
+        if (sameKind) return null;
+
+        const panel = build();
+        panel.dataset.kind = kind;
+        container.append(panel);
+        return panel;
+      }
+
       function showCreate(container) {
         const nickname = el('input', { class: 'input', maxlength: '24', placeholder: '新身份的昵称' });
         const submit = el('button', { class: 'button primary', type: 'button' }, '创建');
@@ -435,8 +451,8 @@
             submit.disabled = false;
           }
         });
-        container.append(panel);
-        nickname.focus();
+
+        if (toggleInlinePanel(container, 'create', () => panel)) nickname.focus();
       }
 
       function showClaim(container) {
@@ -470,8 +486,8 @@
             submit.disabled = false;
           }
         });
-        container.append(panel);
-        code.focus();
+
+        if (toggleInlinePanel(container, 'claim', () => panel)) code.focus();
       }
 
       return box;

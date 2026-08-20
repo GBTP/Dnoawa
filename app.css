@@ -337,6 +337,9 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 /* ---------- 热榜 ---------- */
 
 .hot-periods { display: flex; gap: 2px; margin-bottom: 22px; }
+/* 类选择器的 display 优先级高于 [hidden] 属性，不显式压一下，
+   切回「全部谱面」时周期按钮还会留在那儿。和 .pager 是同一个坑。 */
+.hot-periods[hidden] { display: none; }
 .period {
   height: 30px;
   padding: 0 13px;
@@ -1260,6 +1263,7 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .check input { margin-top: 3px; }
 
 .title-options { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.title-options[hidden] { display: none; }
 .title-option {
   display: inline-flex;
   align-items: baseline;
