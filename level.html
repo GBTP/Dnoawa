@@ -312,6 +312,16 @@
         return;
       }
 
+      // 榜上有别人、但自己没有已上传成绩：可能真没打过，也可能只是离线打的。
+      // 不说清楚的话，离线玩家会以为自己的成绩丢了。
+      if (!mine) {
+        box.append(el('div', { class: 'my-score is-empty' },
+          el('span', { class: 'label' }, '我已上传的成绩'),
+          el('p', { class: 'my-hint' },
+            '你还没有联网提交过这张谱面的成绩。离线游玩、开启 Mod 或练习模式的成绩不会上传。'),
+        ));
+      }
+
       // "我的最佳在不在这 100 名里"要直接查榜单，不能用 mine.rank 推算——
       // 两个端点算 rank 的方式不一样：榜单是 startRank + i（按排序位置数下来），
       // my-best 是 CountAsync(Score > 我的分) + 1（同分并列）。同分时两者给出的
@@ -409,15 +419,22 @@
     /**
      * 固定在榜单上方的自己那条。
      *
-     * @param {boolean} [onBoard] 是否出现在下方榜单里。不在的话明说一句，
-     *   否则用户看到自己的名次却在榜里找不到人，会以为界面坏了。
+     * **这里显示的是"已上传的最好成绩"，不是玩家真正的最好成绩。** 客户端存两套：
+     * 本地 SQLite 的 ScoreRow（离线打的也记）和服务端的 PlayRecords（只有联网
+     * 提交过的）。网页读不到手机上的本地库，所以只能看到后者。
+     *
+     * 差异的来源不止离线——开 Mod 的局和练习模式本来就不上传成绩（见
+     * Anoawa/CLAUDE.md 的 Mod 设置一节）。所以标题不能写"我的最好成绩"，
+     * 那会让人以为自己离线打的那次丢了。
+     *
+     * @param {boolean} [onBoard] 是否出现在下方榜单里
      * @param {number} [boardSize] 榜单实际显示了多少条
      */
     function myScoreRow(score, levelId, onBoard, boardSize) {
       const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
 
       return el('div', { class: 'my-score' },
-        el('span', { class: 'label' }, '我的成绩'),
+        el('span', { class: 'label' }, '我已上传的成绩'),
         el('div', { class: 'my-score-body' },
           el('span', { class: 'my-rank num' }, `#${score.rank}`),
           el('span', { class: 'my-value num' }, score.score.toLocaleString('en-US')),
@@ -428,6 +445,9 @@
         onBoard === false && boardSize
           ? el('p', { class: 'my-note' }, `未进入下方的前 ${boardSize} 名`)
           : null,
+        el('p', { class: 'my-hint' },
+          '只统计联网提交的成绩。离线游玩、开启 Mod 或练习模式的成绩不会上传，' +
+          '游戏内看到的最好成绩可能比这里高。'),
       );
     }
 
