@@ -28,7 +28,10 @@
   </main>
 
   <script type="module">
-    import { requireLogin, describeError, logout, ApiError, getToken, saveSession } from './js/api.js';
+    import {
+      requireLogin, describeError, logout, ApiError, getToken, saveSession, clearSession,
+    } from './js/api.js';
+    import { deleteAccount, requestVerificationCode } from './js/auth.js';
     import {
       getMyProfile, getPublicUser, updateProfile,
       getMyLevels, getUserLevels, getRecentPlays,
@@ -120,6 +123,7 @@
       const header = el('section', { class: 'profile' }, avatar, meta);
       if (isSelf) header.append(editPanel(profile));
       content.append(header);
+      if (isSelf) content.append(deletePanel(profile));
 
       content.append(
         el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
@@ -214,6 +218,138 @@
       );
 
       return el('div', { class: 'profile-actions' }, toggle, box);
+    }
+
+    /**
+     * 注销账号。放在页面最下方的危险区，默认收起。
+     *
+     * 三个开关对应后端 DeleteAccountRequest 的三个字段。**默认全部保留**
+     * （也就是三个都发 false），和后端"缺字段即全删"的默认相反——
+     * 那个默认是为了兼容老客户端，对人来说保留才是安全的一侧。
+     */
+    function deletePanel(profile) {
+      const box = el('div', { class: 'danger-zone' });
+      const toggle = el('button', { class: 'button small danger', type: 'button' }, '注销账号');
+      const panel = el('div', { class: 'delete-panel', hidden: true });
+
+      toggle.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggle.textContent = panel.hidden ? '注销账号' : '收起';
+      });
+
+      const scopes = [
+        ['deleteLevels', '我上传的谱面',
+         '不删则改挂到「已注销用户」名下，其他玩家仍能下载游玩。'],
+        ['deleteLikes', '我的点赞', '不删则保留，对应谱面的点赞数不变。'],
+        ['deletePlayRecords', '我的成绩与游玩记录',
+         '不删则改挂到「已注销用户」，仍会出现在排行榜上。'],
+      ];
+
+      const checks = {};
+      const scopeList = el('div', { class: 'scope-list' });
+      for (const [key, label, note] of scopes) {
+        const input = el('input', { type: 'checkbox' });
+        checks[key] = input;
+        input.addEventListener('change', paintWarning);
+        scopeList.append(el('label', { class: 'scope-item' },
+          input,
+          el('div', {},
+            el('strong', {}, `同时删除${label}`),
+            el('span', {}, note)),
+        ));
+      }
+
+      // deleteLevels 的连带影响足够意外，勾上时单独警告
+      const cascade = el('div', { class: 'callout warning', hidden: true });
+      function paintWarning() {
+        cascade.hidden = !checks.deleteLevels.checked;
+        if (checks.deleteLevels.checked) {
+          clear(cascade);
+          cascade.append(
+            el('strong', {}, '删除谱面会连带删掉别人的数据。'),
+            el('p', {}, '其他玩家在你这些谱面上的成绩、点赞和游玩记录都会一并消失，包括你上面选择保留的部分。'),
+          );
+        }
+      }
+
+      const email = el('input', { class: 'input', type: 'email', value: profile.email ?? '', readonly: true });
+      const code = el('input', { class: 'input code', maxlength: '6', inputmode: 'numeric', placeholder: '······' });
+      const sendCode = el('button', { class: 'button small', type: 'button' }, '发送验证码');
+      const confirm = el('input', { class: 'input', placeholder: '输入你的昵称以确认' });
+      const submit = el('button', { class: 'button danger', type: 'button', disabled: true }, '永久注销账号');
+      const status = el('div', { class: 'callout', hidden: true });
+
+      const revalidate = () => {
+        submit.disabled = !(code.value.trim().length >= 4 && confirm.value.trim() === profile.nickname);
+      };
+      code.addEventListener('input', revalidate);
+      confirm.addEventListener('input', revalidate);
+
+      sendCode.addEventListener('click', async () => {
+        hideBox(status);
+        sendCode.disabled = true;
+        try {
+          await requestVerificationCode(profile.email);
+          let left = 60;
+          const tick = setInterval(() => {
+            left -= 1;
+            sendCode.textContent = left > 0 ? `${left} 秒后重发` : '发送验证码';
+            if (left <= 0) { clearInterval(tick); sendCode.disabled = false; }
+          }, 1000);
+          sendCode.textContent = '60 秒后重发';
+          showBox(status, '验证码已发送到你的邮箱，10 分钟内有效。', 'success');
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          sendCode.disabled = false;
+        }
+      });
+
+      submit.addEventListener('click', async () => {
+        const kept = scopes.filter(([key]) => !checks[key].checked).map(([, label]) => label);
+        const summary = kept.length
+          ? `以下内容会改挂到「已注销用户」名下保留：${kept.join('、')}。`
+          : '你选择了删除全部内容。';
+        if (!window.confirm(`${summary}\n\n注销后无法恢复，确定继续吗？`)) return;
+
+        submit.disabled = true;
+        submit.textContent = '注销中…';
+        try {
+          await deleteAccount(code.value, {
+            deleteLevels: checks.deleteLevels.checked,
+            deleteLikes: checks.deleteLikes.checked,
+            deletePlayRecords: checks.deletePlayRecords.checked,
+          });
+          // 账号没了，本地凭据也没有意义了
+          clearSession();
+          alert('账号已注销。');
+          location.href = 'login.html';
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          submit.disabled = false;
+          submit.textContent = '永久注销账号';
+        }
+      });
+
+      panel.append(
+        el('div', { class: 'callout error' },
+          el('strong', {}, '注销后账号无法恢复。'),
+          el('p', {}, '默认会保留你的谱面、点赞和成绩，改挂到「已注销用户」名下——昵称和头像不再展示，但内容仍留在社区里。想连内容一起删掉，勾选下面的选项。'),
+        ),
+        el('div', { class: 'field' }, el('label', {}, '删除范围'), scopeList),
+        cascade,
+        el('div', { class: 'field' }, el('label', {}, '邮箱'), email),
+        el('div', { class: 'field' },
+          el('label', {}, '验证码'),
+          el('div', { class: 'input-row' }, code, sendCode)),
+        el('div', { class: 'field' },
+          el('label', {}, `输入昵称「${profile.nickname}」以确认`),
+          confirm),
+        submit,
+        status,
+      );
+
+      box.append(el('h2', { class: 'section-title' }, '危险操作'), toggle, panel);
+      return box;
     }
 
     // ---------- 谱面 ----------

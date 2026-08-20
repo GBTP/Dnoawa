@@ -650,6 +650,28 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .danger-zone .section-title { color: var(--danger); border-bottom-color: rgba(255, 90, 95, .3); }
 .danger-zone .field { max-width: 320px; }
 
+.delete-panel {
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255, 90, 95, .3);
+  max-width: 520px;
+}
+.delete-panel[hidden] { display: none; }
+.delete-panel .field { max-width: none; }
+
+.scope-list { display: grid; gap: 1px; border: 1px solid var(--line); background: var(--line); }
+.scope-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  background: var(--bg);
+  cursor: pointer;
+}
+.scope-item input { margin-top: 4px; flex: 0 0 auto; }
+.scope-item strong { display: block; font-size: 14px; font-weight: 500; }
+.scope-item span { display: block; margin-top: 2px; color: var(--faint); font-size: 12.5px; line-height: 1.5; }
+
 .button.danger { border-color: rgba(255, 90, 95, .5); color: var(--danger); }
 .button.danger:hover:not(:disabled) { border-color: var(--danger); background: rgba(255, 90, 95, .1); }
 .button.danger:disabled { border-color: var(--line); color: var(--faint); }
