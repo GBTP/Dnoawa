@@ -592,6 +592,14 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
   word-break: break-word;
 }
 .profile-sub { margin: 5px 0 0; color: var(--faint); font-size: 13px; }
+.unverified {
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 11px;
+}
+
 .role-badge {
   display: inline-block;
   margin-top: 8px;

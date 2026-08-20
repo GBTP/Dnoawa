@@ -115,12 +115,12 @@
         meta.append(el('p', { class: 'profile-sub' }, '该账号已注销，昵称与头像不再展示。'));
       }
       if (profile.bilibiliUid) {
+        // 刻意不做成可点链接：这个 UID 谁都能填，后端既不校验格式也不验证归属。
+        // 渲染成跳转 B 站空间的链接等于替一个未经验证的声明背书——填别人 UID
+        // 的人会白得一个看起来很正规的入口。等有了真正的归属验证再放开。
         meta.append(el('p', { class: 'profile-sub' },
-          el('a', {
-            href: `https://space.bilibili.com/${encodeURIComponent(profile.bilibiliUid)}`,
-            target: '_blank',
-            rel: 'noreferrer',
-          }, `Bilibili ${profile.bilibiliUid} ↗`)));
+          `Bilibili UID ${profile.bilibiliUid} `,
+          el('span', { class: 'unverified', title: '该 UID 由用户自行填写，未经验证' }, '未验证')));
       }
       if (isSelf && profile.email) {
         meta.append(el('p', { class: 'profile-sub' }, profile.email));
@@ -211,7 +211,10 @@
 
       box.append(
         el('div', { class: 'field' }, el('label', {}, '昵称'), nickname),
-        el('div', { class: 'field' }, el('label', {}, 'Bilibili UID'), bilibili),
+        el('div', { class: 'field' },
+          el('label', {}, 'Bilibili UID'),
+          bilibili,
+          el('p', { class: 'hint' }, '目前不做归属验证，页面上会标注“未验证”。留空即解绑。')),
         el('div', { class: 'field' },
           el('label', {}, '头像'),
           el('div', { class: 'avatar-pick' }, avatarButton, avatarName, avatarInput)),
