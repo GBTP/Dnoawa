@@ -78,9 +78,27 @@ export function toggleLike(id) {
   return post(`/api/levels/${id}/like`);
 }
 
+/** 客户端 LeaderboardPanel 请求的条数，两端保持一致。 */
+export const LEADERBOARD_SIZE = 100;
+
 /** 单张谱面的排行榜（每人只有最佳成绩）。 */
-export function getLeaderboard(id, { page = 1, pageSize = 20 } = {}) {
+export function getLeaderboard(id, { page = 1, pageSize = LEADERBOARD_SIZE } = {}) {
   return get(`/api/levels/${id}/leaderboard?page=${page}&pageSize=${pageSize}`);
+}
+
+/**
+ * 我附近的排名。range 被后端 clamp 到 10–200，返回以我为中心的一段。
+ *
+ * **没有成绩时返回 { myRank: 0, myScore: null, items: [] }**，不是 404——
+ * 调用方要按 myRank === 0 判断，别拿 items.length 当依据。
+ */
+export function getAroundMe(id, { range = LEADERBOARD_SIZE } = {}) {
+  return get(`/api/levels/${id}/leaderboard/around-me?range=${range}`);
+}
+
+/** 我在这张谱面上的最好成绩。**没打过返回 null 而不是 404。** */
+export function getMyBest(id) {
+  return get(`/api/levels/${id}/my-best`);
 }
 
 /** 后端 HotLeaderboardCache.NormalizePeriod 认得的三个周期。 */

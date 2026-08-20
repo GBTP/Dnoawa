@@ -32,7 +32,10 @@
 
   <script type="module">
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
-    import { getLevel, toggleLike, getLeaderboard, COMBO_LABELS, STATUS_LABELS } from './js/levels.js';
+    import {
+      getLevel, toggleLike, getLeaderboard, getAroundMe, getMyBest,
+      COMBO_LABELS, STATUS_LABELS, LEADERBOARD_SIZE,
+    } from './js/levels.js';
     import { difficultyTier } from './js/songlist.js';
     import { getMyProfile } from './js/users.js';
     import {
@@ -274,20 +277,33 @@
 
     // ---------- 排行榜 ----------
 
+    /**
+     * 排行榜。Top 100，和客户端 LeaderboardPanel 一致。
+     *
+     * 一次拿 100 条塞进一个限高的滚动区，而不是分页——排行榜是用来上下扫的，
+     * 翻页会打断这件事。100 条的 DOM 量很小，不值得上虚拟滚动。
+     */
     async function loadLeaderboard(id) {
       const box = document.getElementById('board');
       if (!box) return;
 
-      let result;
-      try {
-        result = await getLeaderboard(id, { pageSize: 20 });
-      } catch (error) {
-        clear(box);
-        box.append(el('div', { class: 'callout error' }, describeError(error)));
+      // 两个请求一起发：榜单是所有人的，my-best 是我自己的，互不依赖
+      const [boardResult, mineResult] = await Promise.allSettled([
+        getLeaderboard(id, { pageSize: LEADERBOARD_SIZE }),
+        getMyBest(id),
+      ]);
+
+      clear(box);
+
+      if (boardResult.status === 'rejected') {
+        box.append(el('div', { class: 'callout error' }, describeError(boardResult.reason)));
         return;
       }
 
-      clear(box);
+      const result = boardResult.value;
+      // my-best 没打过时返回 null；请求本身失败也当作没有，不打扰
+      const mine = mineResult.status === 'fulfilled' ? mineResult.value : null;
+
       if (!result.items.length) {
         box.append(el('div', { class: 'empty' },
           el('h3', {}, '还没有成绩'),
@@ -296,25 +312,106 @@
         return;
       }
 
+      // 自己的成绩固定在顶部，不用在榜里翻
+      if (mine) box.append(myScoreRow(mine, id));
+
+      const scroller = el('div', { class: 'board-scroll' });
       const board = el('div', { class: 'board' });
       for (const score of result.items) {
-        const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
-        board.append(el('div', { class: 'board-row' },
-          el('span', { class: 'board-rank' }, `#${score.rank}`),
-          score.isAnonymized
-            ? el('span', { class: 'board-name anonymized' }, displayName(score.nickname, true))
-            : el('a', { class: 'board-name', href: `user.html?id=${score.userId}` },
-                displayName(score.nickname, false)),
-          el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[score.comboState] || ''),
-          el('span', { class: 'board-score' }, score.score.toLocaleString('en-US')),
-        ));
+        board.append(scoreRow(score, mine));
       }
-      box.append(board);
+      scroller.append(board);
+      box.append(scroller);
 
-      if (result.totalCount > result.items.length) {
-        box.append(el('p', { class: 'result-meta', style: 'margin-top:12px;text-align:center' },
-          `共 ${result.totalCount} 条成绩，这里显示前 ${result.items.length} 名`));
+      const foot = el('div', { class: 'board-foot' });
+      foot.append(el('span', {},
+        result.totalCount > result.items.length
+          ? `共 ${result.totalCount} 条成绩，显示前 ${result.items.length} 名`
+          : `共 ${result.items.length} 条成绩`));
+
+      // 排名在 100 名之外时给个入口，跳到自己周围那一段
+      if (mine && mine.rank > result.items.length) {
+        const jump = el('button', { class: 'button small', type: 'button' }, '看我附近的排名');
+        jump.addEventListener('click', () => loadAroundMe(id, box, mine));
+        foot.append(jump);
       }
+      box.append(foot);
+
+      // 自己在榜内的话滚到那一行，省得手动找
+      const own = board.querySelector('.board-row.is-me');
+      if (own) own.scrollIntoView({ block: 'center' });
+    }
+
+    /** 换成"我附近"的视图：以自己为中心的一段。 */
+    async function loadAroundMe(id, box, mine) {
+      clear(box);
+      box.append(el('div', { class: 'skeleton', style: 'height:120px' }));
+
+      let result;
+      try {
+        result = await getAroundMe(id, { range: LEADERBOARD_SIZE });
+      } catch (error) {
+        clear(box);
+        box.append(el('div', { class: 'callout error' }, describeError(error)));
+        return;
+      }
+
+      clear(box);
+      // myRank 为 0 表示没有成绩，此时 items 也是空的
+      if (!result.myRank || !result.items.length) {
+        box.append(el('div', { class: 'empty' }, el('h3', {}, '你还没有这张谱面的成绩')));
+        return;
+      }
+
+      box.append(myScoreRow(result.myScore ?? mine, id));
+
+      const scroller = el('div', { class: 'board-scroll' });
+      const board = el('div', { class: 'board' });
+      for (const score of result.items) board.append(scoreRow(score, result.myScore));
+      scroller.append(board);
+      box.append(scroller);
+
+      const back = el('button', { class: 'button small', type: 'button' }, '← 回到 Top 100');
+      back.addEventListener('click', () => {
+        clear(box);
+        box.append(el('div', { class: 'skeleton', style: 'height:120px' }));
+        loadLeaderboard(id);
+      });
+      box.append(el('div', { class: 'board-foot' },
+        el('span', {}, `你排在第 ${result.myRank} 名`), back));
+
+      board.querySelector('.board-row.is-me')?.scrollIntoView({ block: 'center' });
+    }
+
+    /** 榜单里的一行。mine 用来判断是不是自己，高亮那一行。 */
+    function scoreRow(score, mine) {
+      const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
+      const isMe = mine && score.userId === mine.userId;
+
+      return el('div', { class: `board-row${isMe ? ' is-me' : ''}` },
+        el('span', { class: 'board-rank num' }, `#${score.rank}`),
+        score.isAnonymized
+          ? el('span', { class: 'board-name anonymized' }, displayName(score.nickname, true))
+          : el('a', { class: 'board-name', href: `user.html?id=${score.userId}` },
+              displayName(score.nickname, false)),
+        el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[score.comboState] || ''),
+        el('span', { class: 'board-score' }, score.score.toLocaleString('en-US')),
+      );
+    }
+
+    /** 固定在榜单上方的自己那条。 */
+    function myScoreRow(score, levelId) {
+      const combo = ({ PureMemory: 'pm', FullRecall: 'fr', TrackComplete: 'tc' })[score.comboState] || 'tc';
+      return el('div', { class: 'my-score' },
+        el('span', { class: 'label' }, '我的成绩'),
+        el('div', { class: 'my-score-body' },
+          el('span', { class: 'my-rank num' }, `#${score.rank}`),
+          el('span', { class: 'my-value num' }, score.score.toLocaleString('en-US')),
+          el('span', { class: `board-combo ${combo}` }, COMBO_LABELS[score.comboState] || ''),
+          el('span', { class: 'my-judge num' },
+            `${score.maxPureCount}/${score.pureCount}/${score.farCount}/${score.lostCount}`),
+        ),
+      );
     }
 
     // ---------- 错误页 ----------

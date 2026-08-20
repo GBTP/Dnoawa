@@ -611,7 +611,20 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 
 /* ---------- 排行榜 ---------- */
 
-.board { border: 1px solid var(--line); }
+/* Top 100 塞进一个限高的滚动区：排行榜是用来上下扫的，翻页会打断这件事。
+   100 行的 DOM 量很小，不值得上虚拟滚动。 */
+.board-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  /* 滚动到边界时不要把整个页面也带着滚 */
+  overscroll-behavior: contain;
+}
+.board-scroll::-webkit-scrollbar { width: 8px; }
+.board-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); }
+.board-scroll::-webkit-scrollbar-track { background: transparent; }
+
+.board { border: 0; }
 .board-row {
   display: grid;
   grid-template-columns: 44px 1fr auto auto;
@@ -629,6 +642,43 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .board-combo { color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .board-combo.pm { color: var(--gold); }
 .board-combo.fr { color: var(--text); }
+
+/* 自己那一行在榜里高亮，左边一道竖线 */
+.board-row.is-me {
+  background: rgba(255, 255, 255, .05);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+
+/* 固定在榜单上方的自己那条 */
+.my-score {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+}
+.my-score > .label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.my-score-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; }
+.my-rank { color: var(--muted); font-size: 14px; }
+.my-value { font-size: 19px; font-variant-numeric: tabular-nums; }
+.my-judge { margin-left: auto; color: var(--faint); font-size: 12px; }
+
+.board-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+.board-foot .button { margin-left: auto; }
 
 .launch-fallback { margin-top: 14px; }
 
@@ -807,7 +857,7 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 
 @media (max-width: 720px) {
   .play-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
-  .play-judge, .board-combo { display: none; }
+  .play-judge, .board-row .board-combo { display: none; }
 }
 
 /* ==========================================================================
@@ -1075,7 +1125,7 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   .hero-layout { flex-direction: column; gap: 20px; }
   .hero-cover { flex: none; width: min(240px, 62%); }
   .board-row { grid-template-columns: 32px 1fr auto; gap: 10px; padding: 9px 11px; font-size: 13px; }
-  .board-combo { display: none; }
+  .board-row .board-combo { display: none; }
 }
 
 @media (max-width: 640px) {
