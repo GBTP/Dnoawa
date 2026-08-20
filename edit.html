@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>编辑谱面 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link" href="get.html">获取游戏</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:760px">
+    <p class="result-meta" id="back"></p>
+    <div id="content"></div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout, ApiError } from './js/api.js';
+    import { getLevel, updateLevel, deleteLevel } from './js/levels.js';
+    import { getMyProfile } from './js/users.js';
+    import { el, clear, showBox, hideBox } from './js/ui.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+    document.getElementById('logout').addEventListener('click', logout);
+
+    const content = document.getElementById('content');
+    const levelId = new URLSearchParams(location.search).get('id');
+
+    if (!levelId || !/^\d+$/.test(levelId)) {
+      renderError('链接不完整', '缺少谱面编号。');
+    } else {
+      load(levelId);
+    }
+
+    async function load(id) {
+      document.getElementById('back').append(
+        el('a', { href: `level.html?id=${id}` }, '← 返回谱面详情'));
+      content.append(el('div', { class: 'skeleton', style: 'height:320px' }));
+
+      let level, profile;
+      try {
+        [level, profile] = await Promise.all([getLevel(id), getMyProfile()]);
+      } catch (error) {
+        clear(content);
+        if (error instanceof ApiError && error.status === 403) {
+          renderError('无权访问', '这张谱面对你不可见。');
+        } else if (error instanceof ApiError && error.isGone) {
+          renderError('谱面不存在', '它可能已被删除。');
+        } else {
+          renderError('加载失败', describeError(error));
+        }
+        return;
+      }
+
+      // 后端 UpdateLevelAsync 的权限判断是 UploaderId == requesterId || isAdmin，
+      // 这里先挡一道，省得填完表单才被 403
+      const canEdit = level.uploaderId === profile.id || profile.isAdmin;
+      if (!canEdit) {
+        clear(content);
+        renderError('无权编辑', '只有上传者和管理员可以修改这张谱面。');
+        return;
+      }
+
+      clear(content);
+      renderForm(level, profile.isAdmin);
+    }
+
+    function renderForm(level, isAdmin) {
+      document.title = `编辑 ${level.levelName} · Anoawa 社区`;
+
+      const form = el('form', { class: 'card' });
+      const fields = {};
+      const input = (id, label, value, attrs = {}, hint = null) => {
+        const node = el('input', { class: 'input', value: value ?? '', ...attrs });
+        fields[id] = node;
+        return el('div', { class: 'field' },
+          el('label', {}, label), node,
+          hint ? el('p', { class: 'hint' }, hint) : null);
+      };
+
+      // 非管理员改完要重审，这条必须显眼——否则谱师会以为改个错别字
+      // 就把自己的谱面从库里弄消失了
+      if (!isAdmin) {
+        form.append(el('div', { class: 'callout warning' },
+          el('strong', {}, '保存后需要重新审核。'),
+          el('p', {}, '修改会把谱面状态改回「审核中」，通过前其他玩家看不到它。'),
+        ));
+      }
+
+      form.append(
+        el('div', { class: 'grid-2' },
+          input('levelName', '曲名', level.levelName, { required: true, maxlength: '80' }),
+          input('composerName', '曲师', level.composerName, { required: true, maxlength: '80' }),
+          input('charterName', '谱师', level.charterName, { required: true, maxlength: '80' }),
+          input('artistName', '曲绘', level.artistName, { required: true, maxlength: '80' }),
+          input('displayDifficulty', '显示难度', level.displayDifficulty, { required: true, maxlength: '16' }),
+          input('baseBpm', '基准 BPM', level.baseBpm, { type: 'number', step: '0.01', min: '1', required: true }, '参与玩法的数值。'),
+          input('bpm', '显示 BPM', level.bpm, { maxlength: '32' }, '纯展示，可写成 174-186。'),
+        ),
+      );
+
+      const themeText = el('input', {
+        class: 'input', value: level.themeColor || '#4B65B0',
+        maxlength: '7', pattern: '#[0-9A-Fa-f]{6}',
+      });
+      const themeSwatch = el('input', { class: 'input swatch', type: 'color', value: safeColor(level.themeColor), 'aria-label': '选择主题色' });
+      themeText.addEventListener('input', () => {
+        if (/^#[0-9a-f]{6}$/i.test(themeText.value)) themeSwatch.value = themeText.value;
+      });
+      themeSwatch.addEventListener('input', () => { themeText.value = themeSwatch.value.toUpperCase(); });
+      fields.themeColor = themeText;
+
+      const tags = el('input', { class: 'input', value: (level.tags || []).join(', '), placeholder: '用逗号分隔' });
+      const intro = el('textarea', { class: 'input', rows: '3', maxlength: '500' });
+      intro.value = level.introduction || '';
+      const allowExport = el('input', { type: 'checkbox' });
+      allowExport.checked = Boolean(level.allowExport);
+
+      form.append(
+        el('div', { class: 'field' },
+          el('label', {}, '主题色'),
+          el('div', { class: 'input-row' }, themeText, themeSwatch)),
+        el('div', { class: 'field' }, el('label', {}, '标签'), tags),
+        el('div', { class: 'field' }, el('label', {}, '简介'), intro),
+        el('div', { class: 'field' },
+          el('label', { class: 'check' }, allowExport,
+            el('span', {}, '允许其他玩家把下载后的谱面导出成文件夹')),
+        ),
+      );
+
+      const save = el('button', { class: 'button primary', type: 'submit' }, '保存修改');
+      const status = el('div', { class: 'callout', hidden: true });
+      form.append(el('div', { class: 'hero-actions' }, save), status);
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        hideBox(status);
+        save.disabled = true;
+        save.textContent = '保存中…';
+
+        try {
+          // 只提交真正改过的字段：后端对每个字段判 `is not null`，
+          // 全量提交在并发编辑时会把别人刚改的覆盖掉
+          const patch = {};
+          const put = (key, value, original) => {
+            if (value !== original) patch[key] = value;
+          };
+
+          put('levelName', fields.levelName.value.trim(), level.levelName);
+          put('composerName', fields.composerName.value.trim(), level.composerName);
+          put('charterName', fields.charterName.value.trim(), level.charterName);
+          put('artistName', fields.artistName.value.trim(), level.artistName);
+          put('displayDifficulty', fields.displayDifficulty.value.trim(), level.displayDifficulty);
+          put('baseBpm', Number(fields.baseBpm.value) || 0, level.baseBpm);
+          put('bpm', fields.bpm.value.trim(), level.bpm ?? '');
+          put('themeColor', /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0', level.themeColor);
+          put('introduction', intro.value.trim(), level.introduction ?? '');
+          put('allowExport', allowExport.checked, Boolean(level.allowExport));
+
+          const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+          const oldTags = level.tags || [];
+          if (nextTags.length !== oldTags.length || nextTags.some((t, i) => t !== oldTags[i])) {
+            patch.tags = nextTags;
+          }
+
+          if (!Object.keys(patch).length) {
+            showBox(status, '没有需要保存的改动', '');
+            return;
+          }
+
+          await updateLevel(level.id, patch);
+          showBox(status, isAdmin ? '已保存。' : '已保存，谱面重新进入审核队列。', 'success');
+          setTimeout(() => location.href = `level.html?id=${level.id}`, 1200);
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+        } finally {
+          save.disabled = false;
+          save.textContent = '保存修改';
+        }
+      });
+
+      content.append(form);
+      content.append(dangerZone(level));
+    }
+
+    /** 删除是不可逆的，单独放一块并要求输入曲名确认。 */
+    function dangerZone(level) {
+      const box = el('div', { class: 'danger-zone' });
+      const confirm = el('input', { class: 'input', placeholder: '输入曲名以确认删除' });
+      const remove = el('button', { class: 'button danger', type: 'button', disabled: true }, '删除这张谱面');
+      const status = el('div', { class: 'callout', hidden: true });
+
+      confirm.addEventListener('input', () => {
+        remove.disabled = confirm.value.trim() !== level.levelName;
+      });
+
+      remove.addEventListener('click', async () => {
+        remove.disabled = true;
+        remove.textContent = '删除中…';
+        try {
+          await deleteLevel(level.id);
+          location.href = 'user.html';
+        } catch (error) {
+          showBox(status, describeError(error), 'error');
+          remove.disabled = false;
+          remove.textContent = '删除这张谱面';
+        }
+      });
+
+      box.append(
+        el('h2', { class: 'section-title' }, '危险操作'),
+        el('div', { class: 'callout error' },
+          el('strong', {}, '删除后无法恢复。'),
+          el('p', {}, '谱面文件、所有人在这张谱面上的成绩和点赞都会一并删除。'),
+        ),
+        el('div', { class: 'field', style: 'margin-top:16px' }, confirm),
+        remove,
+        status,
+      );
+      return box;
+    }
+
+    function safeColor(value) {
+      return /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#4B65B0';
+    }
+
+    function renderError(title, detail) {
+      clear(content);
+      content.append(el('div', { class: 'card' },
+        el('div', { class: 'empty' },
+          el('h3', {}, title),
+          el('p', {}, detail),
+          el('p', { style: 'margin-top:16px' }, el('a', { href: 'index.html' }, '← 返回谱面库')),
+        ),
+      ));
+    }
+  </script>
+</body>
+</html>

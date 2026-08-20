@@ -232,7 +232,18 @@
           return;
         }
 
-        for (const level of result.items) box.append(levelCard(level));
+        for (const level of result.items) {
+          const card = levelCard(level);
+          if (!isSelf) { box.append(card); continue; }
+
+          // 自己的空间里给每张谱面一个编辑入口，省得先进详情再点一次。
+          // 卡片本身是 <a>，<a> 里不能嵌 <a>（浏览器会把内层移出去），
+          // 所以包一层容器，两个链接是兄弟节点。
+          box.append(el('div', { class: 'card-slot' },
+            card,
+            el('a', { class: 'card-edit', href: `edit.html?id=${level.id}` }, '编辑'),
+          ));
+        }
 
         if (result.totalCount > result.items.length) {
           box.append(el('p', { class: 'result-meta', style: 'grid-column:1/-1;margin-top:8px' },

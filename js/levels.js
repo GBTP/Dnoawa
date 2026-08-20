@@ -6,7 +6,7 @@
  * 只可能是当前用户自己上传的。
  */
 
-import { get, post } from './api.js';
+import { get, post, put, del } from './api.js';
 
 /** PaginateAsync 把 pageSize clamp 到 1–50，前端别发更大的值。 */
 export const MAX_PAGE_SIZE = 50;
@@ -52,6 +52,25 @@ export function getLevel(id) {
 /** 我上传的谱面（含审核中的）。 */
 export function listMyLevels({ page = 1, pageSize = PAGE_SIZE } = {}) {
   return get(`/api/levels/mine?page=${page}&pageSize=${Math.min(pageSize, MAX_PAGE_SIZE)}`);
+}
+
+/**
+ * 更新谱面。只传要改的字段，null/undefined 的字段后端不动。
+ *
+ * 重要：**非管理员改完后 Status 会被后端重置为 Pending，需要重新审核**
+ * （LevelService.UpdateLevelAsync 末尾的 `if (!isAdmin) level.Status = Pending`）。
+ * 界面上必须讲清楚，否则谱师会以为改个错别字就把自己的谱面从库里弄消失了。
+ *
+ * durationSeconds 单独提交会 400——它只能跟 musicFileId 一起，
+ * 而且写库的永远是服务端实测值。网页端不碰这个字段。
+ */
+export function updateLevel(id, patch) {
+  return put(`/api/levels/${id}`, patch);
+}
+
+/** 删除谱面。上传者或管理员可用，会连带删掉云存储文件和所有人的成绩点赞。 */
+export function deleteLevel(id) {
+  return del(`/api/levels/${id}`);
 }
 
 /** 切换点赞，返回切换后的状态。 */

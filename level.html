@@ -34,6 +34,7 @@
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
     import { getLevel, toggleLike, getLeaderboard, COMBO_LABELS, STATUS_LABELS } from './js/levels.js';
     import { difficultyTier } from './js/songlist.js';
+    import { getMyProfile } from './js/users.js';
     import {
       el, clear, coverImage, applyTheme, formatCount, formatDuration, formatDate,
       displayName, showBox, avatarImage,
@@ -207,10 +208,21 @@
       const play = el('button', { class: 'button primary', type: 'button' }, '在 Anoawa 中游玩');
       play.addEventListener('click', () => launchClient(level.id));
 
+      const actions = el('div', { class: 'hero-actions' }, play, like);
+
+      // 编辑入口只对上传者和管理员显示。要拿 profile 里的 id 和 isAdmin，
+      // 而 localStorage 里存的那份只有昵称和头像，所以得请求一次。
+      // 后端的权限判断才是权威的（UpdateLevelAsync 会再查一次），
+      // 这里只是不给无权的人看到入口。
+      getMyProfile().then(profile => {
+        if (level.uploaderId !== profile.id && !profile.isAdmin) return;
+        actions.append(el('a', { class: 'button', href: `edit.html?id=${level.id}` }, '编辑信息'));
+      }).catch(() => { /* 拿不到就不显示入口，后端那关照样挡得住 */ });
+
       const fallback = el('div', { class: 'callout warning launch-fallback', id: 'launch-hint', hidden: true });
 
       return el('div', {},
-        el('div', { class: 'hero-actions' }, play, like),
+        actions,
         fallback,
         // 刻意不提供谱面包下载：游戏那边"下载的谱面默认不能编辑/导出，除非上传者
         // 勾了允许导出"是为了防止作品被改名或二次分发，网页上放裸下载会绕过这套保护。
