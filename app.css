@@ -517,6 +517,34 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 .spec .label { color: var(--faint); font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .spec .value { font-size: 14px; }
 
+/* ---------- 上传者 ---------- */
+
+.uploader { margin-top: 20px; }
+.uploader > .label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.uploader-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 14px 8px 8px;
+  border: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s var(--ease);
+}
+a.uploader-card:hover { border-color: var(--line-strong); }
+a.uploader-card:hover .uploader-name { text-decoration: underline; text-underline-offset: 3px; }
+.uploader-card.is-anonymized { color: var(--faint); }
+.uploader-name { font-size: 14px; }
+.uploader-time { margin-top: 2px; color: var(--faint); font-size: 12px; }
+
 .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
 .tag { padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 
@@ -574,6 +602,13 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 /* 没头像时用昵称首字，比一个空框或占位图标干净 */
+.avatar-sm {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+
 .avatar-empty {
   display: grid;
   place-items: center;

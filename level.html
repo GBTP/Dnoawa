@@ -35,7 +35,7 @@
     import { difficultyTier } from './js/songlist.js';
     import {
       el, clear, coverImage, applyTheme, formatCount, formatDuration, formatDate,
-      displayName, showBox,
+      displayName, showBox, avatarImage,
     } from './js/ui.js';
     import { createPreviewPlayer } from './js/audio.js';
 
@@ -104,6 +104,7 @@
           `谱面 ${level.charterName}`,
           level.artistName ? ` · 曲绘 ${level.artistName}` : null),
         specRow(level),
+        uploaderBlock(level),
         tagRow(level.tags),
         actions(level),
       );
@@ -135,21 +136,40 @@
         ['时长', formatDuration(level.durationSeconds), false],
         ['游玩', formatCount(level.playCount), false],
         ['点赞', formatCount(level.likeCount), false],
-        ['上传者', displayName(level.uploaderNickname, level.uploaderIsAnonymized), false],
-        ['上传于', formatDate(level.createdAtUtc), false],
       ];
 
       return el('div', { class: 'spec-row' },
-        items.filter(([, value]) => value).map(([label, value, accent]) => {
-          // 上传者做成链接，但注销用户的墓碑账号没什么可看的，不链
-          const isUploader = label === '上传者' && !level.uploaderIsAnonymized;
-          return el('span', { class: `spec${accent ? ' accent' : ''}` },
+        items.filter(([, value]) => value).map(([label, value, accent]) =>
+          el('span', { class: `spec${accent ? ' accent' : ''}` },
             el('span', { class: 'label' }, label),
-            isUploader
-              ? el('a', { class: 'value', href: `user.html?id=${level.uploaderId}` }, value)
-              : el('span', { class: 'value num' }, value),
-          );
-        }),
+            el('span', { class: 'value num' }, value),
+          )),
+      );
+    }
+
+    /**
+     * 上传者。头像 + 昵称 + 上传时间，整块可点进对方的个人空间。
+     *
+     * 注销后留下的墓碑账号不做链接：那个页面没有任何内容，昵称和头像按后端约定
+     * 也都不能用（uploaderIsAnonymized）。
+     */
+    function uploaderBlock(level) {
+      const anonymized = Boolean(level.uploaderIsAnonymized);
+      const name = displayName(level.uploaderNickname, anonymized);
+
+      const inner = [
+        avatarImage(anonymized ? null : level.uploaderAvatarUrl, name, { size: 96, className: 'avatar avatar-sm' }),
+        el('div', {},
+          el('div', { class: 'uploader-name' }, name),
+          el('div', { class: 'uploader-time' }, `上传于 ${formatDate(level.createdAtUtc)}`),
+        ),
+      ];
+
+      return el('div', { class: 'uploader' },
+        el('span', { class: 'label' }, '上传者'),
+        anonymized
+          ? el('div', { class: 'uploader-card is-anonymized' }, inner)
+          : el('a', { class: 'uploader-card', href: `user.html?id=${level.uploaderId}` }, inner),
       );
     }
 

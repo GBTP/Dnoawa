@@ -131,6 +131,50 @@ export function coverImage(level, { alt = '' } = {}) {
   return wrap;
 }
 
+// ---------- 头像 ----------
+
+/**
+ * LeanCloud（七牛系）的图片处理参数。后端 AuthService.GetAvatarThumbnail 就是
+ * 这么拼的，但只用在 /api/auth/profile 和 /api/auth/users/{id} 上；
+ * LevelResponse.uploaderAvatarUrl 走的是 LevelMapper，给的是**原图地址**。
+ * 谱面详情里只显示 40px，不缩一下等于每次都白下一张大图。
+ */
+function thumbnail(url, size) {
+  if (!url) return url;
+  return url.includes('?') ? url : `${url}?imageView/1/w/${size}/h/${size}`;
+}
+
+/**
+ * 头像。没有图或图裂了就退化成昵称首字，比空框或占位图标干净。
+ *
+ * @param {?string} url
+ * @param {string} name 已经过 displayName 处理的展示名
+ * @param {{size?: number, className?: string}} [options] size 只用于请求缩略图，实际尺寸由 CSS 定
+ */
+export function avatarImage(url, name, { size = 128, className = 'avatar' } = {}) {
+  const wrap = el('div', { class: className });
+
+  if (!url) {
+    wrap.classList.add('avatar-empty');
+    wrap.textContent = (name || '?').slice(0, 1);
+    return wrap;
+  }
+
+  const img = el('img', {
+    src: thumbnail(url, size),
+    alt: `${name} 的头像`,
+    loading: 'lazy',
+    referrerpolicy: 'no-referrer',
+    onerror: () => {
+      img.remove();
+      wrap.classList.add('avatar-empty');
+      wrap.textContent = (name || '?').slice(0, 1);
+    },
+  });
+  wrap.append(img);
+  return wrap;
+}
+
 // ---------- 交互 ----------
 
 /** 提交期间禁用按钮并转圈，结束后还原。 */

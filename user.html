@@ -37,7 +37,7 @@
     import { uploadFile } from './js/tus.js';
     import { PRESET, processImage } from './js/media.js';
     import {
-      el, clear, formatDate, displayName, showBox, hideBox,
+      el, clear, formatDate, displayName, showBox, hideBox, avatarImage,
     } from './js/ui.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -91,19 +91,9 @@
       const name = displayName(profile.nickname, anonymized);
       document.title = `${name} · Anoawa 社区`;
 
-      const avatar = el('div', { class: 'avatar' });
-      if (profile.avatarUrl && !anonymized) {
-        const img = el('img', {
-          src: profile.avatarUrl,
-          alt: `${name} 的头像`,
-          referrerpolicy: 'no-referrer',
-          onerror: () => { img.remove(); avatar.classList.add('avatar-empty'); },
-        });
-        avatar.append(img);
-      } else {
-        avatar.classList.add('avatar-empty');
-        avatar.textContent = name.slice(0, 1);
-      }
+      // /api/auth/profile 和 /api/auth/users/{id} 给的已经是 256px 缩略图，
+      // avatarImage 里的拼接对带 query 的地址是幂等的
+      const avatar = avatarImage(anonymized ? null : profile.avatarUrl, name, { size: 256 });
 
       const meta = el('div', { class: 'profile-meta' },
         el('h1', {}, name),
