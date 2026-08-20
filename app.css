@@ -617,6 +617,34 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .resource-status.is-done { color: var(--text); }
 .resource-status.is-error { color: var(--danger); }
 
+/* ---------- 可复制的命令块 ---------- */
+
+.command-block { margin-top: 12px; }
+.command-note { margin: 0 0 7px; color: var(--faint); font-size: 12.5px; line-height: 1.55; }
+.command-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, .3);
+}
+.command-line pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  /* 长命令换行而不是横向滚动：用户要整条复制，看得全比省地方重要 */
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.command-line .button { flex: 0 0 auto; }
+
+.resource-extra:empty { display: none; }
+
 /* 危险操作区：删除不可逆，视觉上要和普通表单区分开 */
 .danger-zone { margin-top: 48px; }
 .danger-zone .section-title { color: var(--danger); border-bottom-color: rgba(255, 90, 95, .3); }

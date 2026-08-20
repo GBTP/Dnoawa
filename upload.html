@@ -120,6 +120,7 @@
             <input type="checkbox" id="includeVideo">
             <span>一并上传背景视频<small class="hint" id="video-note" style="display:block"></small></span>
           </label>
+          <div id="video-hint"></div>
         </div>
 
         <div class="field">
@@ -153,7 +154,8 @@
     import { DIFF_NAMES, DIFF_COLORS, LOCALE_LABELS } from './js/songlist.js';
     import { decodeAudio } from './js/media.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
-    import { el, clear } from './js/ui.js';
+    import { el, clear, commandBlock } from './js/ui.js';
+    import { buildFfmpegCommand } from './js/replace.js';
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
@@ -397,6 +399,7 @@
       const field = document.getElementById('video-field');
       const checkbox = document.getElementById('includeVideo');
       const note = document.getElementById('video-note');
+      clear(document.getElementById('video-hint'));
 
       field.hidden = !scan.video;
       if (!scan.video) return;
@@ -407,10 +410,15 @@
         note.textContent = `${scan.video.name} · ${videoProbe.width}×${videoProbe.height} · ${(scan.video.size / 1024 / 1024).toFixed(1)}MB`;
       } else {
         // 浏览器里转不了码（客户端用的 VideoNormalizer 在网页上没有对等实现），
-        // 与其上传后被后端 400，不如提前说清楚
+        // 与其上传后被后端 400，不如提前说清楚并给出转码命令
         checkbox.disabled = true;
         checkbox.checked = false;
-        note.textContent = `${videoProbe?.reason || '无法识别'}。网页端不能转码，请先用客户端上传或自行转成合规的 MP4。`;
+        note.textContent = `${videoProbe?.reason || '无法识别'}。网页端不能转码。`;
+
+        const slot = document.getElementById('video-hint');
+        clear(slot);
+        slot.append(commandBlock(buildFfmpegCommand(scan.video.name),
+          '装了 ffmpeg 的话，用这条命令转成合规的 MP4，再把 bg.mp4 放回谱面目录重新拖入：'));
       }
     }
 

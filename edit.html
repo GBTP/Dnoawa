@@ -31,7 +31,7 @@
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
     import { getLevel, updateLevel, deleteLevel } from './js/levels.js';
     import { getMyProfile } from './js/users.js';
-    import { el, clear, showBox, hideBox } from './js/ui.js';
+    import { el, clear, showBox, hideBox, commandBlock } from './js/ui.js';
     import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
     import { decodeAudio, defaultPreviewRange } from './js/media.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
@@ -224,6 +224,7 @@
         const status = el('div', { class: 'resource-status' });
         // 只有预览用得上：选完文件后在这里画波形让用户框选区间
         const rangeSlot = kind === 'preview' ? el('div', { class: 'resource-range' }) : null;
+        const hintSlot = el('div', { class: 'resource-extra' });
         let rangeEditor = null;
 
         const reset = () => {
@@ -242,6 +243,7 @@
           apply.disabled = !file;
           status.textContent = '';
           status.className = 'resource-status';
+          clear(hintSlot);
 
           rangeEditor?.destroy();
           rangeEditor = null;
@@ -288,6 +290,13 @@
           } catch (error) {
             status.textContent = describeError(error);
             status.className = 'resource-status is-error';
+            // 视频不合规时 prepareResource 会把 ffmpeg 命令挂在错误上，
+            // 直接给出来比让用户自己查参数强
+            if (error.ffmpegCommand) {
+              clear(hintSlot);
+              hintSlot.append(commandBlock(error.ffmpegCommand,
+                '装了 ffmpeg 的话，用这条命令转成合规的 MP4 再上传：'));
+            }
             apply.disabled = false;
           } finally {
             choose.disabled = false;
@@ -301,6 +310,7 @@
           el('div', { class: 'resource-actions' }, choose, chosen, apply, picker),
           rangeSlot,
           status,
+          hintSlot,
         ));
       }
 

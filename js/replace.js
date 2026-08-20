@@ -137,9 +137,14 @@ export async function prepareResource(kind, file, report, options = {}) {
 
     case 'video': {
       report('检查视频');
-      // 浏览器里转不了码，只能验合规性——不合规就别白传一趟
+      // 浏览器里转不了码，只能验合规性——不合规就别白传一趟。
+      // 抛出的错误里带 ffmpeg 命令，用户可以自己转好再来。
       const probe = await probeVideo(file);
-      if (!probe.ok) throw new Error(probe.reason);
+      if (!probe.ok) {
+        const error = new Error(probe.reason);
+        error.ffmpegCommand = buildFfmpegCommand(file.name);
+        throw error;
+      }
       return { blob: file, name: file.name };
     }
 
@@ -170,4 +175,33 @@ export async function uploadResource(kind, file, report, options = {}) {
     patch.previewEnd = range.end;
   }
   return patch;
+}
+
+/**
+ * 给不合规的视频生成一条 ffmpeg 转码命令。
+ *
+ * 参数对着后端 VideoValidationService 的四条限制来：
+ * - scale：长边压到 1000、短边压到 760 以内，取较小的缩放比，保持比例；
+ *   `-2` 让另一边自动算并对齐到偶数（H.264 要求偶数尺寸）
+ * - -b:v 6M：留在 8Mbps 上限之下，给容器开销和码率波动留余量
+ * - -profile:v high -pix_fmt yuv420p：最通用的组合，客户端和浏览器都解得开
+ * - -movflags +faststart：moov 放到文件头，边下边播；也让浏览器一读到头部
+ *   就能拿到元数据，probeVideo 那关更稳
+ * - -an：BGA 不需要音轨，去掉能省不少体积
+ */
+export function buildFfmpegCommand(inputName = 'input.mp4') {
+  const quote = name => /[\s'"$`\\]/.test(name) ? `'${name.replace(/'/g, "'\\''")}'` : name;
+  const safe = quote(inputName);
+  // 输入本身就叫 bg.mp4 时输出得换个名字，否则 ffmpeg 会拒绝覆盖输入文件
+  const output = inputName.toLowerCase() === 'bg.mp4' ? 'bg-converted.mp4' : 'bg.mp4';
+  return [
+    'ffmpeg',
+    `-i ${safe}`,
+    '-vf "scale=\'min(1000,iw)\':\'min(760,ih)\':force_original_aspect_ratio=decrease,scale=-2:-2"',
+    '-c:v libx264 -profile:v high -pix_fmt yuv420p',
+    '-b:v 6M -maxrate 7M -bufsize 12M',
+    '-movflags +faststart',
+    '-an',
+    output,
+  ].join(' ');
 }

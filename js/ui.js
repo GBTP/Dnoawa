@@ -175,6 +175,39 @@ export function avatarImage(url, name, { size = 128, className = 'avatar' } = {}
   return wrap;
 }
 
+// ---------- 命令块 ----------
+
+/**
+ * 可复制的命令行代码块。视频不合规时给出 ffmpeg 转码命令用。
+ *
+ * @param {string} command
+ * @param {string} [note] 命令上方的一句说明
+ */
+export function commandBlock(command, note) {
+  const code = el('code', {}, command);
+  const copy = el('button', { class: 'button small', type: 'button' }, '复制');
+
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      copy.textContent = '已复制';
+    } catch {
+      // 剪贴板要安全上下文和权限，失败时选中让用户自己复制
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+      copy.textContent = '请手动复制';
+    }
+    setTimeout(() => { copy.textContent = '复制'; }, 1600);
+  });
+
+  return el('div', { class: 'command-block' },
+    note ? el('p', { class: 'command-note' }, note) : null,
+    el('div', { class: 'command-line' }, el('pre', {}, code), copy),
+  );
+}
+
 // ---------- 交互 ----------
 
 /** 提交期间禁用按钮并转圈，结束后还原。 */
