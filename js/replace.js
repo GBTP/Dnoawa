@@ -99,7 +99,8 @@ export async function prepareResource(kind, file, report, options = {}) {
       const decoded = await decodeAudio(file);
       const range = options.previewRange;
 
-      // 给了区间就按区间切，没给且音频本身已经合规就原样传
+      // 没给区间、且整个文件已经是合规的 OGG Vorbis 且不超 60 秒，就原样传，
+      // 免得白掉一代音质。给了区间就必须走切片——用户框了区间却不生效是更糟的。
       if (!range) {
         const bytes = await readBytes(file);
         if (isOggVorbis(bytes) && decoded.duration <= PRESET.preview.maxSeconds) {
@@ -108,7 +109,7 @@ export async function prepareResource(kind, file, report, options = {}) {
       }
 
       report('生成预览片段');
-      const start = range?.start ?? 0;
+      const start = Math.max(0, range?.start ?? 0);
       const end = Math.min(
         range?.end ?? PRESET.preview.maxSeconds,
         start + PRESET.preview.maxSeconds,

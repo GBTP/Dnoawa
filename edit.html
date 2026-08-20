@@ -33,6 +33,8 @@
     import { getMyProfile } from './js/users.js';
     import { el, clear, showBox, hideBox } from './js/ui.js';
     import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
+    import { decodeAudio, defaultPreviewRange } from './js/media.js';
+    import { createPreviewRangeEditor } from './js/preview-range.js';
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
@@ -220,13 +222,51 @@
         const chosen = el('span', { class: 'resource-file' }, '未选择');
         const apply = el('button', { class: 'button small', type: 'button', disabled: true }, '替换');
         const status = el('div', { class: 'resource-status' });
+        // 只有预览用得上：选完文件后在这里画波形让用户框选区间
+        const rangeSlot = kind === 'preview' ? el('div', { class: 'resource-range' }) : null;
+        let rangeEditor = null;
+
+        const reset = () => {
+          picker.value = '';
+          chosen.textContent = '未选择';
+          apply.disabled = true;
+          rangeEditor?.destroy();
+          rangeEditor = null;
+          if (rangeSlot) clear(rangeSlot);
+        };
 
         choose.addEventListener('click', () => picker.click());
-        picker.addEventListener('change', () => {
+        picker.addEventListener('change', async () => {
           const file = picker.files[0];
           chosen.textContent = file ? `${file.name}（${formatSize(file.size)}）` : '未选择';
           apply.disabled = !file;
           status.textContent = '';
+          status.className = 'resource-status';
+
+          rangeEditor?.destroy();
+          rangeEditor = null;
+          if (!rangeSlot) return;
+          clear(rangeSlot);
+          if (!file) return;
+
+          // 解码是上传前本来就要做的（切片用），这里提前做掉，画波形和试听不额外花成本
+          status.textContent = '正在解析波形…';
+          apply.disabled = true;
+          try {
+            const buffer = await decodeAudio(file);
+            // 解码期间用户可能又换了文件，这份结果已经过期
+            if (picker.files[0] !== file) return;
+
+            const initial = defaultPreviewRange(buffer.duration);
+            rangeEditor = createPreviewRangeEditor({ buffer, ...initial });
+            rangeSlot.append(rangeEditor.element);
+            status.textContent = '';
+          } catch (error) {
+            // 解析失败不挡住替换：整段上传这条路仍然可用（后端会拒超 60 秒的）
+            status.textContent = `无法解析波形（${error.message}），将整段上传`;
+          } finally {
+            if (picker.files[0] === file) apply.disabled = false;
+          }
         });
 
         apply.addEventListener('click', async () => {
@@ -237,12 +277,14 @@
           apply.disabled = true;
           choose.disabled = true;
           try {
-            const patch = await uploadResource(kind, file, text => { status.textContent = text; });
+            const patch = await uploadResource(kind, file, text => {
+              status.textContent = text;
+              status.className = 'resource-status';
+            }, { previewRange: rangeEditor?.getRange() });
             await updateLevel(level.id, patch);
             status.textContent = isAdmin ? '已替换。' : '已替换，谱面重新进入审核。';
             status.className = 'resource-status is-done';
-            picker.value = '';
-            chosen.textContent = '未选择';
+            reset();
           } catch (error) {
             status.textContent = describeError(error);
             status.className = 'resource-status is-error';
@@ -257,6 +299,7 @@
             el('strong', {}, spec.label),
             el('span', { class: 'resource-hint' }, spec.hint)),
           el('div', { class: 'resource-actions' }, choose, chosen, apply, picker),
+          rangeSlot,
           status,
         ));
       }
