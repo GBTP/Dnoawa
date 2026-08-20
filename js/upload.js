@@ -17,6 +17,7 @@ import {
 import {
   DIFFICULTY_COUNT, DIFF_NAMES, DIFF_COLORS, isSonglistName, parseSonglist,
 } from './songlist.js';
+import { isArcadeProjectPath, parseArcadeProject } from './arcade.js';
 
 // ChartFolderScanner 里的几组扩展名
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tga', 'psd', 'gif'];
@@ -38,7 +39,8 @@ export function scanFiles(files) {
   const scan = {
     charts: new Array(DIFFICULTY_COUNT).fill(null),
     music: null, cover: null, songlist: null, effect: null,
-    background: null, video: null, wavs: [], leftover: [], error: null,
+    background: null, video: null, arcadeProject: null,
+    wavs: [], leftover: [], error: null,
   };
 
   // 先挑出 base 音频，后面判断 wav 时要拿它排除自己
@@ -46,6 +48,15 @@ export function scanFiles(files) {
     const lower = file.name.toLowerCase();
     const ext = extensionOf(lower);
     const stem = stemOf(lower);
+
+    // Arcade 工程文件在子目录 Arcade/ 下，不在谱面目录根部，所以按相对路径认。
+    // webkitRelativePath 只在目录选择/拖入时才有；单选文件时退化成按文件名认，
+    // 那种情况下拿不到目录结构，宁可认宽一点也别漏。
+    const relative = file.webkitRelativePath || file.name;
+    if (isArcadeProjectPath(relative) || lower === 'project.arcade') {
+      scan.arcadeProject ??= file;
+      continue;
+    }
 
     // 谱面：0.aff ~ 4.aff，数字就是难度档
     if (ext === 'aff') {
@@ -116,6 +127,10 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
     ? parseSonglist(await scan.songlist.text())
     : parseSonglist(null);
 
+  const arcade = scan.arcadeProject
+    ? parseArcadeProject(await scan.arcadeProject.text())
+    : parseArcadeProject(null);
+
   const prefill = {
     levelName: folderName || '',
     /** songlist 里有几种语言的曲名就列几种，交给用户挑。空对象表示没得挑。 */
@@ -130,7 +145,17 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
     previewStart: 0,
     previewEnd: 0,
     fromSonglist: songlist.hasRead,
+    fromArcade: arcade.hasRead,
   };
+
+  // Arcade 工程文件先垫一层，顺序与客户端 ChartFolderImporter 一致：
+  // 它只有曲名/曲师/BaseBpm 三样，但谱师的工作目录常常只有它没有 songlist，
+  // 没它的话 BaseBpm 只能落到 120，游戏里的流速会不对。
+  // 放在 songlist 前面是因为 songlist 信息更全（还有难度评级、画师、试听区间），
+  // 两者都在时以 songlist 为准。
+  if (arcade.title) prefill.levelName = arcade.title;
+  if (arcade.artist) prefill.composerName = arcade.artist;
+  if (arcade.baseBpm > 0) prefill.baseBpm = arcade.baseBpm;
 
   if (!songlist.hasRead) return prefill;
 

@@ -34,7 +34,7 @@
       <div class="dropzone" id="dropzone" tabindex="0" role="button">
         <h3>拖入谱面文件夹</h3>
         <p>需要 <code>0.aff</code>~<code>4.aff</code>、<code>base</code> 音频和 <code>base</code> 曲绘</p>
-        <span class="or">songlist、bg 图/视频、effect.bin、音效 wav 都会自动识别</span>
+        <span class="or">songlist、Arcade 工程文件、bg 图/视频、effect.bin、音效 wav 都会自动识别</span>
         <input type="file" id="picker" multiple hidden>
       </div>
 
@@ -201,7 +201,17 @@
       const files = [];
       const walk = async entry => {
         if (entry.isFile) {
-          files.push(await new Promise((res, rej) => entry.file(res, rej)));
+          const file = await new Promise((res, rej) => entry.file(res, rej));
+          // 拖进来的 File 上 webkitRelativePath 是空的（那是 <input webkitdirectory>
+          // 才有的），目录信息只在 entry.fullPath 上。Arcade/Project.arcade 这类
+          // 按路径识别的文件需要它，所以挂一个只读属性带出去。
+          try {
+            Object.defineProperty(file, 'webkitRelativePath', {
+              value: entry.fullPath.replace(/^\//, ''),
+              configurable: true,
+            });
+          } catch { /* 某些浏览器上 File 的属性不可重定义，退化成按文件名认 */ }
+          files.push(file);
         } else if (entry.isDirectory) {
           const reader = entry.createReader();
           // readEntries 一次最多返回 100 条，要一直读到空为止
@@ -239,6 +249,7 @@
         ['音频', scan.music?.name, ''],
         ['曲绘', scan.cover?.name, ''],
         ['songlist', scan.songlist?.name, scan.songlist ? '将用于预填' : '未提供'],
+        ['Arcade 工程', scan.arcadeProject?.name, scan.arcadeProject ? '将用于预填' : '未提供'],
         ['背景图', scan.background?.name, scan.background ? '打进谱面包' : '未提供'],
         ['演出效果', scan.effect?.name, scan.effect ? '打进谱面包' : '未提供'],
         ['音效', scan.wavs.length ? scan.wavs.map(w => w.name).join('、') : null, scan.wavs.length ? `${scan.wavs.length} 个` : '未提供'],
@@ -428,8 +439,14 @@
       setThemeColor(prefill.themeColor);
       renderTitleOptions(prefill.titleOptions);
 
-      if (prefill.fromSonglist) {
-        note.textContent = '已从 songlist 读取曲目信息，请核对后再提交。';
+      // 两者都在时以 songlist 为准（信息更全），与客户端 ChartFolderImporter 一致
+      const sources = [
+        prefill.fromSonglist ? 'songlist' : null,
+        prefill.fromArcade ? 'Arcade 工程文件' : null,
+      ].filter(Boolean);
+
+      if (sources.length) {
+        note.textContent = `已从 ${sources.join(' 和 ')} 读取曲目信息，请核对后再提交。`;
         note.hidden = false;
       } else {
         note.hidden = true;
