@@ -188,6 +188,9 @@ img { display: block; max-width: 100%; height: auto; }
   font-weight: 600;
   letter-spacing: .14em;
   text-transform: uppercase;
+  /* 顶栏是 sticky 的，scrollIntoView 过来的标题不加这条会停在它底下
+     （个人空间翻页后滚回「我的谱面」） */
+  scroll-margin-top: calc(var(--topbar) + 12px);
 }
 
 .divider { margin: 26px 0; border: 0; border-top: 1px solid var(--line); }

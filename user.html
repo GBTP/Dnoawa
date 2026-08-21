@@ -40,7 +40,7 @@
     } from './js/profiles.js';
     import {
       getPendingCollaborations, getSentCollaborations, acceptCollaboration, removeCollaborator,
-      COMBO_LABELS,
+      COMBO_LABELS, PAGE_SIZE,
     } from './js/levels.js';
     import {
       getMyProfile, getPublicUser, updateProfile,
@@ -164,13 +164,19 @@
       }
 
       content.append(
-        el('h2', { class: 'section-title' }, isSelf ? '我的谱面' : '上传的谱面'),
+        el('h2', { class: 'section-title', id: 'levels-heading' }, isSelf ? '我的谱面' : '上传的谱面'),
         isSelf
           ? el('p', { class: 'result-meta' },
               '有别人给你的转让码？',
               el('a', { href: 'claim.html' }, '领取一张谱面 →'))
           : null,
+        // 张数加载完才知道，先藏起来：空 <p> 的下边距会在填上的那一刻把网格顶下去
+        el('p', { class: 'result-meta', id: 'levels-meta', hidden: true }),
         el('div', { class: 'level-grid', id: 'levels' }),
+        el('div', { class: 'pager', id: 'levels-pager', hidden: true },
+          el('button', { class: 'button small', type: 'button', id: 'levels-prev' }, '← 上一页'),
+          el('span', { class: 'page-info num', id: 'levels-page-info' }),
+          el('button', { class: 'button small', type: 'button', id: 'levels-next' }, '下一页 →')),
         el('h2', { class: 'section-title' }, '最近游玩'),
         el('div', { id: 'plays' }, el('div', { class: 'skeleton', style: 'height:90px' })),
       );
@@ -917,40 +923,93 @@
 
     // ---------- 谱面 ----------
 
+    /**
+     * 谱面区，看自己和看别人共用。
+     *
+     * 分页状态全放在这个闭包里，不往模块顶层加 `let`：本页的 load() 调用排在很多
+     * 声明之前，暂时性死区在这里是踩过的坑（见 CLAUDE.md）。loadLevels 每次进页面
+     * 只会被调一次，按钮事件也就只绑一次。
+     */
     async function loadLevels(id, isSelf) {
       const box = document.getElementById('levels');
-      try {
-        const result = isSelf ? await getMyLevels() : await getUserLevels(id);
+      const pager = document.getElementById('levels-pager');
+      const meta = document.getElementById('levels-meta');
+      const info = document.getElementById('levels-page-info');
+      const prev = document.getElementById('levels-prev');
+      const next = document.getElementById('levels-next');
+      const heading = document.getElementById('levels-heading');
+
+      let page = 1;
+      let seq = 0;   // 连点翻页时，慢的那次回来已经不是当前页了
+
+      // 滚动只挂在点击上，不进 show()：下面那条「空页自动退回上一页」不该动视口
+      prev.addEventListener('click', () => {
+        show(page - 1);
+        heading.scrollIntoView({ behavior: 'smooth' });
+      });
+      next.addEventListener('click', () => {
+        show(page + 1);
+        heading.scrollIntoView({ behavior: 'smooth' });
+      });
+
+      await show(1);
+
+      async function show(target) {
+        const mine = ++seq;
+        page = target;
+
+        pager.hidden = true;
         clear(box);
-
-        if (!result.items.length) {
-          box.append(el('div', { class: 'empty', style: 'grid-column:1/-1' },
-            el('h3', {}, '还没有上传过谱面'),
-            isSelf ? el('p', {}, el('a', { href: 'upload.html' }, '上传第一张 →')) : null,
-          ));
-          return;
+        // 骨架数量对齐实际会返回多少，否则加载完网格高度会跳一下
+        for (let i = 0; i < PAGE_SIZE; i += 1) {
+          box.append(el('div', { class: 'skeleton skeleton-card' }));
         }
 
-        for (const level of result.items) {
-          const card = levelCard(level);
-          if (!isSelf) { box.append(card); continue; }
+        try {
+          const result = isSelf ? await getMyLevels({ page }) : await getUserLevels(id, { page });
+          if (mine !== seq) return;   // 已经有更新的请求发出去了，丢弃这次的结果
+          clear(box);
 
-          // 自己的空间里给每张谱面一个编辑入口，省得先进详情再点一次。
-          // 卡片本身是 <a>，<a> 里不能嵌 <a>（浏览器会把内层移出去），
-          // 所以包一层容器，两个链接是兄弟节点。
-          box.append(el('div', { class: 'card-slot' },
-            card,
-            el('a', { class: 'card-edit', href: `edit.html?id=${level.id}` }, '编辑'),
-          ));
-        }
+          if (!result.items.length) {
+            // 删光最后一页上的谱面之后别把人晾在一页空白上
+            if (page > 1) { await show(page - 1); return; }
+            meta.hidden = true;
+            box.append(el('div', { class: 'empty', style: 'grid-column:1/-1' },
+              el('h3', {}, '还没有上传过谱面'),
+              isSelf ? el('p', {}, el('a', { href: 'upload.html' }, '上传第一张 →')) : null,
+            ));
+            return;
+          }
 
-        if (result.totalCount > result.items.length) {
-          box.append(el('p', { class: 'result-meta', style: 'grid-column:1/-1;margin-top:8px' },
-            `共 ${result.totalCount} 张，这里显示最近 ${result.items.length} 张`));
+          for (const level of result.items) {
+            const card = levelCard(level);
+            if (!isSelf) { box.append(card); continue; }
+
+            // 自己的空间里给每张谱面一个编辑入口，省得先进详情再点一次。
+            // 卡片本身是 <a>，<a> 里不能嵌 <a>（浏览器会把内层移出去），
+            // 所以包一层容器，两个链接是兄弟节点。
+            box.append(el('div', { class: 'card-slot' },
+              card,
+              el('a', { class: 'card-edit', href: `edit.html?id=${level.id}` }, '编辑'),
+            ));
+          }
+
+          meta.textContent = `共 ${result.totalCount} 张谱面`;
+          meta.hidden = false;
+
+          const totalPages = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+          if (totalPages > 1) {
+            pager.hidden = false;
+            info.textContent = `${result.page} / ${totalPages}`;
+            prev.disabled = result.page <= 1;
+            next.disabled = result.page >= totalPages;
+          }
+        } catch (error) {
+          if (mine !== seq) return;
+          clear(box);
+          meta.hidden = true;
+          box.append(el('div', { class: 'callout error', style: 'grid-column:1/-1' }, describeError(error)));
         }
-      } catch (error) {
-        clear(box);
-        box.append(el('div', { class: 'callout error', style: 'grid-column:1/-1' }, describeError(error)));
       }
     }
 
