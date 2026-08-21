@@ -785,6 +785,51 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .pending-note { color: var(--faint) !important; }
 .pending-actions { display: flex; gap: 6px; }
 
+/* 我发出的邀请。行的骨架和 .pending-row 共用（.pending-cover/-info/-actions），
+   但边框是中性灰不是金色：收到的邀请要用户做决定，发出的只是管理，不该抢同一级注意力 */
+.sent-invites { margin-top: 36px; }
+.sent-invites .hint { margin: 0 0 14px; }
+.sent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+}
+.sent-row + .sent-row { margin-top: -1px; }
+
+/* 按昵称选人。下拉结果紧贴搜索框，不做浮层——表单本来就在一块独立面板里，
+   浮层要处理点击外部关闭、滚动跟随、层级，这里都不需要 */
+.user-picker { margin-bottom: 8px; }
+.user-picker .input { width: 100%; }
+.user-picker-results {
+  display: flex;
+  flex-direction: column;
+  margin-top: -1px;
+  border: 1px solid var(--line);
+  max-height: 260px;
+  overflow-y: auto;
+}
+/* 类选择器的 display 会盖过 [hidden]，不压一下这块永远关不掉 */
+.user-picker-results[hidden] { display: none; }
+.user-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.user-picker-option + .user-picker-option { border-top: 1px solid var(--line); }
+.user-picker-option:hover { background: var(--bg-raised); }
+.user-picker-name { flex: 1 1 auto; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 昵称可能重名，UID 才是认人的依据——不能因为它"次要"就藏起来 */
+.user-picker-uid { flex: 0 0 auto; color: var(--faint); font-size: 12px; }
+.user-picker-empty { margin: 0; padding: 10px 11px; color: var(--faint); font-size: 13px; }
+
 /* ---------- 转让所有权 ---------- */
 
 .transfer-section { margin-top: 40px; }

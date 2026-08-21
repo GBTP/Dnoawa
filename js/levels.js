@@ -122,6 +122,21 @@ export function getPendingCollaborations({ page = 1, pageSize = 20 } = {}) {
   return get(`/api/levels/collaborations/pending?page=${page}&pageSize=${pageSize}`);
 }
 
+/**
+ * 我名下谱面上还没被确认的邀请，也就是上面那个的另一面。
+ *
+ * 口径是**谱面主人**而不是当初的邀请人：撤回的资格看的是主人，所以列出来的每一条都撤得掉。
+ * 代价是接手过来的谱面上、前主人留下的悬挂邀请也在这个列表里（转让只改归属，不清理待确认
+ * 邀请），响应里的 `invitedByNickname` 就是给这种情况看的——别默认每条都是自己发的。
+ *
+ * 撤回直接用 removeCollaborator(levelId, inviteeProfileId)，没有单独的端点。
+ *
+ * @returns {Promise<{items: object[], totalCount: number, page: number, pageSize: number}>}
+ */
+export function getSentCollaborations({ page = 1, pageSize = 20 } = {}) {
+  return get(`/api/levels/collaborations/sent?page=${page}&pageSize=${pageSize}`);
+}
+
 // ---------- 谱面所有权转让 ----------
 //
 // 用于多人合作时在成员之间移交谱面，也用于代传后把作品交还作者。

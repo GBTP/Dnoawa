@@ -34,7 +34,7 @@
       createLevelTransfer, revokeLevelTransfer,
       inviteCollaborator, updateCollaboratorRole, removeCollaborator,
     } from './js/levels.js';
-    import { getMyProfile } from './js/users.js';
+    import { getMyProfile, searchUsers, MIN_SEARCH_LENGTH } from './js/users.js';
     import { elevate, needsElevate } from './js/profiles.js';
     import {
       el, clear, showBox, hideBox, commandBlock, formatDate, displayName, avatarImage,
@@ -448,11 +448,82 @@
         return row;
       }
 
+      /**
+       * 邀请表单。搜昵称只是**找 UID 的辅助**——后端收的仍然是 UID，昵称不唯一，
+       * 所以结果里必须把 UID 摆出来让人自己认，也保留直接填 UID 这条路：
+       * 重名的时候那是唯一可靠的定位方式。
+       */
       function inviteForm() {
         const uid = el('input', { class: 'input', type: 'number', min: '1', placeholder: '对方的 UID' });
         const role = el('input', { class: 'input', maxlength: '24', placeholder: '分工，如 曲绘 / BGA / 测试' });
         const submit = el('button', { class: 'button', type: 'button' }, '发出邀请');
         const status = el('div', { class: 'callout', hidden: true });
+
+        const search = el('input', {
+          class: 'input', type: 'search', autocomplete: 'off',
+          placeholder: `按昵称找人（至少 ${MIN_SEARCH_LENGTH} 个字）`,
+        });
+        const results = el('div', { class: 'user-picker-results', hidden: true });
+
+        // 每敲一下就发一次请求的话，这个端点的 30 次/分钟很快就满了
+        let searchTimer = null;
+        let searchSeq = 0;
+
+        function closeResults() {
+          clear(results);
+          results.hidden = true;
+        }
+
+        function pick(user) {
+          uid.value = String(user.id);
+          search.value = user.nickname;
+          closeResults();
+          role.focus();
+        }
+
+        async function runSearch(keyword) {
+          const seq = ++searchSeq;
+          let found;
+          try {
+            found = await searchUsers(keyword);
+          } catch (error) {
+            if (seq !== searchSeq) return;
+            clear(results);
+            results.hidden = false;
+            results.append(el('p', { class: 'user-picker-empty' }, describeError(error)));
+            return;
+          }
+          if (seq !== searchSeq) return;
+
+          clear(results);
+          results.hidden = false;
+          if (!found.length) {
+            results.append(el('p', { class: 'user-picker-empty' },
+              '没有找到这个昵称。对方可以在自己的个人空间里看到 UID，直接填 UID 也行。'));
+            return;
+          }
+
+          for (const user of found) {
+            const option = el('button', { class: 'user-picker-option', type: 'button' },
+              avatarImage(user.avatarUrl, user.nickname, { size: 96, className: 'avatar avatar-sm' }),
+              el('span', { class: 'user-picker-name' }, user.nickname),
+              // 昵称可能重名，UID 才是认人的依据，必须显示
+              el('span', { class: 'user-picker-uid num' }, `UID ${user.id}`));
+            option.addEventListener('click', () => pick(user));
+            results.append(option);
+          }
+        }
+
+        search.addEventListener('input', () => {
+          clearTimeout(searchTimer);
+          const keyword = search.value.trim();
+          if (keyword.length < MIN_SEARCH_LENGTH) {
+            searchSeq += 1;   // 作废还在路上的那次
+            closeResults();
+            return;
+          }
+          searchTimer = setTimeout(() => runSearch(keyword), 300);
+        });
 
         submit.addEventListener('click', async () => {
           hideBox(status);
@@ -465,6 +536,8 @@
             await inviteCollaborator(level.id, uid.value, role.value);
             uid.value = '';
             role.value = '';
+            search.value = '';
+            closeResults();
             showBox(status, '邀请已发出，对方确认后才会出现在署名里。', 'success');
           } catch (error) {
             showBox(status, describeError(error), 'error');
@@ -477,7 +550,9 @@
         return el('div', { class: 'collab-invite' },
           el('span', { class: 'label' }, '邀请合作者'),
           el('p', { class: 'hint' },
-            '填对方的 UID——在对方的个人空间页面能看到。邀请发出后要等他自己确认。'),
+            '按昵称搜人，或者直接填对方的 UID（在对方的个人空间页面能看到）。'
+            + '昵称可能重名，选之前认一下 UID。邀请发出后要等他自己确认。'),
+          el('div', { class: 'user-picker' }, search, results),
           el('div', { class: 'collab-invite-row' }, uid, role, submit),
           status,
         );

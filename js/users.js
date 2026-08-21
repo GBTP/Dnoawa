@@ -24,6 +24,26 @@ export function getPublicUser(id) {
 }
 
 /**
+ * 按昵称找人，邀请挂名时的选人控件用。返回的是数组**不是分页包装**——它是选人控件不是列表。
+ *
+ * **昵称不唯一**，所以界面上必须把每条的 id（UID）显示出来让用户自己确认；后端收的也仍然是
+ * UID，这个接口只是免去"先问对方要 UID"这一步。
+ *
+ * 关键词少于 2 个字符后端会 400，调用方自己先挡一下，别为必然失败的请求占限流额度
+ * （这个端点有独立的限流桶，30 次/分钟）。
+ *
+ * @param {string} q
+ * @param {{limit?: number}} [options] 1–20，后端会夹紧
+ * @returns {Promise<Array<{id: number, nickname: string, avatarUrl: ?string}>>}
+ */
+export function searchUsers(q, { limit = 10 } = {}) {
+  return get(`/api/auth/users/search?q=${encodeURIComponent(q.trim())}&limit=${limit}`);
+}
+
+/** 昵称搜索的最短关键词，和后端 AuthService.MinSearchLength 一致。 */
+export const MIN_SEARCH_LENGTH = 2;
+
+/**
  * 更新自己的资料。三个字段都可选，只传要改的。
  * @param {{nickname?: string, bilibiliUid?: string, avatarFileId?: string}} patch
  */
