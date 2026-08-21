@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0b0d">
   <title>获取游戏 · Anoawa</title>
-  <meta name="description" content="下载 Anoawa：Android APK、iOS TestFlight 与 Windows 桌面版，以及社区群入口。">
+  <meta name="description" content="下载 Anoawa：Android APK 与 Windows 桌面版直链下载，iOS 走 TestFlight，另有社区群入口。">
   <link rel="canonical" href="https://anoawa.cc/get.html">
   <link rel="stylesheet" href="app.css">
 </head>
@@ -24,10 +24,11 @@
   <main class="page" style="max-width:820px">
     <div class="page-head">
       <h1>获取 Anoawa</h1>
-      <p>基于 Arcaea 玩法的社区音乐游戏。安装包与更新公告都在社区群内发布。</p>
+      <p>基于 Arcaea 玩法的社区音乐游戏。Android 与 Windows 可以直接下载，iOS 走 TestFlight 公测。</p>
     </div>
 
     <div class="platform-grid" id="platforms"></div>
+    <p class="download-note" id="download-note"></p>
 
     <h2 class="section-title" id="community">社区群</h2>
     <div class="community-box" id="community-box"></div>
@@ -47,24 +48,38 @@
 
   <script type="module" src="js/nav.js"></script>
   <script type="module">
-    import { PLATFORMS, COMMUNITY, COMMUNITY_NOTE } from './js/download.js';
+    import { PLATFORMS, DOWNLOAD_NOTE, RELEASES_URL, COMMUNITY, COMMUNITY_NOTE } from './js/download.js';
     import { el, clear } from './js/ui.js';
 
     // 这一页刻意不要求登录：新访客就是从这儿了解怎么拿到游戏的
+
+    // 只有 external 的才开新标签页。直链下载刻意不开：GitHub 会 302 到带
+    // Content-Disposition 的地址，同标签页导航直接开始下载、页面留在原地，
+    // 开 _blank 反而给用户留一个空白标签页。
+    const actionLink = (action, variant) => el('a', {
+      class: `button ${variant}`,
+      href: action.href,
+      target: action.external ? '_blank' : null,
+      rel: action.external ? 'noreferrer' : null,
+    }, action.label);
+
     const grid = document.getElementById('platforms');
     for (const platform of PLATFORMS) {
       grid.append(el('div', { class: 'platform-card' },
         el('span', { class: 'os' }, platform.os),
         el('h3', {}, platform.title),
         el('p', {}, platform.note),
-        el('a', {
-          class: `button ${platform.action.external ? 'primary' : ''}`,
-          href: platform.action.href,
-          target: platform.action.external ? '_blank' : null,
-          rel: platform.action.external ? 'noreferrer' : null,
-        }, platform.action.label),
+        el('div', { class: 'platform-actions' },
+          actionLink(platform.action, 'primary'),
+          platform.alt ? actionLink(platform.alt, 'ghost small') : null,
+        ),
       ));
     }
+
+    document.getElementById('download-note').append(
+      DOWNLOAD_NOTE + ' ',
+      el('a', { href: RELEASES_URL, target: '_blank', rel: 'noreferrer' }, '查看全部版本 ↗'),
+    );
 
     const box = document.getElementById('community-box');
     for (const item of COMMUNITY) {
