@@ -39,6 +39,7 @@
   --ease: cubic-bezier(.2, .7, .3, 1);
 
   --gutter: 24px;
+  --topbar: 56px;
 }
 
 * { box-sizing: border-box; }
@@ -84,7 +85,7 @@ img { display: block; max-width: 100%; height: auto; }
 }
 .topbar-inner {
   width: min(1240px, 100%);
-  height: 56px;
+  height: var(--topbar);
   margin: 0 auto;
   padding: 0 var(--gutter);
   display: flex;
@@ -119,6 +120,32 @@ img { display: block; max-width: 100%; height: auto; }
 }
 .top-link:hover { color: var(--text); }
 .top-link.current { color: var(--text); }
+
+/* flex item 的自动最小尺寸取 min-content，而中文的 min-content 就是一个字——
+   窄屏下每个链接会被压成一字宽、文字竖着堆起来。必须显式不收缩、不换行 */
+.top-link { flex: none; white-space: nowrap; }
+
+/* 移动端折叠导航的开关。默认不存在，由 js/nav.js 注入，同时给 .topbar 加
+   .nav-collapsed——折叠样式全都挂在那个类下面，脚本没跑成功时导航必须还能用 */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  margin-left: auto;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: none;
+  font-size: 13px;
+  cursor: pointer;
+}
+.nav-toggle:hover { color: var(--text); border-color: var(--line-strong); }
+
+/* 导航收起时站内信角标跟着被藏了，未读状态得在按钮上留个信儿。沿用角标那套
+   反白小方块，只是不带数字——数字点开就看得到 */
+.nav-toggle-dot { display: block; width: 6px; height: 6px; background: var(--text); }
+.nav-toggle-dot[hidden] { display: none; }
 
 /* ---------- 布局 ---------- */
 
@@ -1416,4 +1443,41 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   .page { padding-top: 28px; padding-bottom: 64px; }
   .brand small { display: none; }
   .card { padding: 20px 16px; }
+  .topbar-inner { gap: 12px; }
+
+  /* 没有 js/nav.js 时的兜底：导航还是一行，放不下就横向滑，至少不竖排。
+     链接少于 4 条的页面（login、get）也一直是这个形态——本来就放得下 */
+  .top-actions { overflow-x: auto; scrollbar-width: none; }
+  .top-actions::-webkit-scrollbar { display: none; }
+
+  /* 有 js/nav.js 时：折成顶栏下方的面板，跟 docs/ 的目录面板同一套行为 */
+  .topbar.nav-collapsed .nav-toggle { display: inline-flex; }
+  .topbar.nav-collapsed .top-actions {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--topbar);
+    z-index: 40;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-height: calc(100vh - var(--topbar));
+    padding: 6px 0 10px;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .topbar.nav-collapsed .top-actions.open { display: flex; }
+  .topbar.nav-collapsed .top-link {
+    height: 44px;
+    /* 有角标的行靠 space-between 把角标推到右边；没角标的只有一个匿名 flex
+       item，space-between 等同于靠左，两种情况共用一条规则 */
+    justify-content: space-between;
+    padding: 0 var(--gutter);
+    border-left: 2px solid transparent;
+    font-size: 15px;
+  }
+  .topbar.nav-collapsed .top-link.current { border-left-color: var(--text); }
+  .topbar.nav-collapsed .top-badge { margin-left: 0; }
 }
