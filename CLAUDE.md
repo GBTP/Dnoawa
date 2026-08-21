@@ -103,6 +103,46 @@ PY
 **`<a>` 里不能嵌 `<a>`。** 浏览器会把内层移出去。卡片本身是链接时，角标要做成
 兄弟节点 + 绝对定位。
 
+**原生 `append()` 会把 `null` 变成写着 "null" 的文字节点。** 全站到处在用
+`条件 ? el(...) : null` 这个写法，它在 `el()` 的子元素位置是安全的（`el` 会跳过
+null / undefined / false），但直接喂给原生 `node.append(...)` 就会在页面上印出一个
+"null"——个人空间看**别人**的谱面区栽过一次，非本人分支那条 `: null` 一直在那儿。
+往原生 `append` / `prepend` / `before` / `after` / `replaceChildren` 里传条件节点时，
+写成 `.append(...[ … ].filter(Boolean))`。扫描：
+
+```bash
+python3 - <<'PY'
+import pathlib, re
+def args_of(src, start):
+    depth, i, args, cur = 0, start, [], ''
+    while i < len(src):
+        c = src[i]
+        if c in '\'"`':
+            q = c; cur += c; i += 1
+            while i < len(src) and src[i] != q:
+                if src[i] == '\\': cur += src[i]; i += 1
+                cur += src[i]; i += 1
+            cur += src[i] if i < len(src) else ''
+        elif c in '([{': depth += 1; cur += c
+        elif c in ')]}':
+            depth -= 1
+            if depth == 0: args.append(cur[1:] if cur.startswith('(') else cur); return args
+            cur += c
+        elif c == ',' and depth == 1:
+            args.append(cur[1:] if cur.startswith('(') else cur); cur = ''
+        else: cur += c
+        i += 1
+    return args
+for f in sorted(list(pathlib.Path('.').glob('*.html')) + list(pathlib.Path('js').glob('*.js'))):
+    src = f.read_text(encoding='utf-8')
+    for m in re.finditer(r'\.(append|prepend|replaceChildren|before|after)\s*\(', src):
+        for a in args_of(src, m.end() - 1):
+            s = a.strip()
+            if re.search(r':\s*null\s*$', s) or s == 'null':
+                print(f'  ✗ {f}:{src[:m.start()].count(chr(10)) + 1} .{m.group(1)}() 实参会求值出 null')
+PY
+```
+
 ## 改动之后
 
 没有测试和构建，所以每次改完至少跑这三样：

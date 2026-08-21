@@ -163,7 +163,9 @@
         loadSentCollaborations(profile.id);
       }
 
-      content.append(
+      // 原生 append 会把非 Node 实参转成字符串——`: null` 会变成一个写着 "null" 的
+      // 文字节点（el() 的子元素会过滤 null，原生 append 不会）。所以这里必须 filter。
+      content.append(...[
         el('h2', { class: 'section-title', id: 'levels-heading' }, isSelf ? '我的谱面' : '上传的谱面'),
         isSelf
           ? el('p', { class: 'result-meta' },
@@ -179,7 +181,7 @@
           el('button', { class: 'button small', type: 'button', id: 'levels-next' }, '下一页 →')),
         el('h2', { class: 'section-title' }, '最近游玩'),
         el('div', { id: 'plays' }, el('div', { class: 'skeleton', style: 'height:90px' })),
-      );
+      ].filter(Boolean));
     }
 
     // ---------- 编辑自己的资料 ----------
