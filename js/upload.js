@@ -295,6 +295,11 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
     displayDifficulty: meta.displayDifficulty,
     themeColor: meta.themeColor,
     introduction: meta.introduction || null,
+    // 空串要发 null 而不是 ""：后端 ParseRecommendedTheme 对空白按 Unspecified 处理，
+    // 但 chartConstant 是 float?，"" 会绑定失败整个请求 400
+    recommendedTheme: meta.recommendedTheme || null,
+    // 留空就不给，让服务端从显示难度猜一个打底
+    chartConstant: meta.chartConstant === '' ? null : Number(meta.chartConstant),
     // 传 0 跳过交叉校验：写库的永远是服务端 NVorbis 实测的值
     durationSeconds: 0,
     tags: meta.tags,

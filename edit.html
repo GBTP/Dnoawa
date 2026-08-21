@@ -141,6 +141,7 @@
           input('charterName', '谱师', level.charterName, { required: true, maxlength: '80' }),
           input('artistName', '曲绘', level.artistName, { required: true, maxlength: '80' }),
           input('displayDifficulty', '显示难度', level.displayDifficulty, { required: true, maxlength: '16' }),
+          input('chartConstant', '难度定数', level.chartConstant, { type: 'number', step: '0.1', min: '0', max: '20' }, '清空不会撤销已有定数，只是这次不改它。'),
           input('baseBpm', '基准 BPM', level.baseBpm, { type: 'number', step: '0.01', min: '1', required: true }, '参与玩法的数值。'),
           input('bpm', '显示 BPM', level.bpm, { maxlength: '32' }, '纯展示，可写成 174-186。'),
         ),
@@ -157,6 +158,14 @@
       themeSwatch.addEventListener('input', () => { themeText.value = themeSwatch.value.toUpperCase(); });
       fields.themeColor = themeText;
 
+      const theme = el('select', { class: 'select' });
+      for (const [value, label] of [['', '不指定'], ['Light', '明亮'], ['Dark', '暗色']]) {
+        const option = el('option', { value }, label);
+        // 后端出的是枚举名（Unspecified/Light/Dark），Unspecified 对应"不指定"那个空值
+        if ((level.recommendedTheme || 'Unspecified') === (value || 'Unspecified')) option.selected = true;
+        theme.append(option);
+      }
+
       const tags = el('input', { class: 'input', value: (level.tags || []).join(', '), placeholder: '用逗号分隔' });
       const intro = el('textarea', { class: 'input', rows: '3', maxlength: '500' });
       intro.value = level.introduction || '';
@@ -165,6 +174,9 @@
         el('div', { class: 'field' },
           el('label', {}, '主题色'),
           el('div', { class: 'input-row' }, themeText, themeSwatch)),
+        el('div', { class: 'field' },
+          el('label', {}, '推荐资源包主题'), theme,
+          el('p', { class: 'hint' }, '建议玩这张谱时用哪种色调的资源包，纯建议。')),
         el('div', { class: 'field' }, el('label', {}, '标签'), tags),
         el('div', { class: 'field' }, el('label', {}, '简介'), intro),
       );
@@ -197,6 +209,14 @@
           put('bpm', fields.bpm.value.trim(), level.bpm ?? '');
           put('themeColor', /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0', level.themeColor);
           put('introduction', intro.value.trim(), level.introduction ?? '');
+          put('recommendedTheme', theme.value || 'Unspecified', level.recommendedTheme || 'Unspecified');
+
+          // 定数留空 = 这次不改。后端 UpdateLevelRequest.ChartConstant 是 float?，
+          // null 就是"不动"，没有"清成未设定"这条路——真要清得另开接口，先不做。
+          const constantText = fields.chartConstant.value.trim();
+          if (constantText !== '' && Number(constantText) !== level.chartConstant) {
+            patch.chartConstant = Number(constantText);
+          }
 
           const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
           const oldTags = level.tags || [];
