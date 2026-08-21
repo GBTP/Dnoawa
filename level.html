@@ -78,6 +78,8 @@
 
       clear(content);
       renderLevel(level);
+      // 必须在 renderLevel 之后：launch-hint 这个节点是 actions() 建出来的
+      handleNoAppRedirect();
       loadLeaderboard(id);
     }
 
@@ -276,36 +278,115 @@
     // ---------- 拉起客户端 ----------
 
     /**
-     * anoawa://level/{id}
+     * 客户端注册的是自定义 scheme anoawa://level/{id}（Android 在 AndroidManifest 的
+     * intent-filter，iOS 在 Info.plist 的 CFBundleURLTypes）。
      *
-     * 客户端目前还没注册这个 scheme（ProjectSettings 的 iOSURLSchemes 为空，
-     * AndroidManifest 里也只有按 MIME 关联的 intent-filter），所以现在点了必然没反应。
-     * 用"跳转后页面有没有失去焦点"来判断有没有被接走，没接走就把提示亮出来。
+     * 三个平台三种打法，因为失败时能拿到的反馈完全不同：
+     *
+     * - Android 用 intent:// 而不是 anoawa://。Chrome 对没有处理者的自定义 scheme 是**静默
+     *   失败**——不跳转、不报错、也不触发任何事件，页面完全察觉不到。intent:// 带
+     *   browser_fallback_url 就变成确定行为：装了就开，没装就跳到 fallback。
+     * - iOS 只能用 anoawa://。没装应用时 Safari 会弹一次系统提示框，这是 custom scheme
+     *   的固有行为，绕不过去（真正的解法是 Universal Links，要 associated-domains
+     *   entitlement 和托管 apple-app-site-association，现在还没做）。
+     * - 桌面**不尝试**唤起。Windows 版还没注册 scheme（Unity Standalone 不支持 deep link，
+     *   得走注册表 + 单实例），试了只会让浏览器弹一个"无法打开 anoawa://"的系统框，
+     *   不如直接说明。
      */
+    const UA = navigator.userAgent;
+    // iPadOS 13 起 Safari 默认把自己报成 Macintosh，只看 UA 会把 iPad 当桌面，靠触摸点数补一刀
+    const IS_IOS = /iphone|ipad|ipod/i.test(UA) || (/macintosh/i.test(UA) && navigator.maxTouchPoints > 1);
+    const IS_ANDROID = /android/i.test(UA);
+    const ANDROID_PACKAGE = 'com.inokana.Anoawa';
+
     function launchClient(id) {
       const hint = document.getElementById('launch-hint');
       hint.hidden = true;
 
+      if (!IS_ANDROID && !IS_IOS) {
+        showLaunchHint('desktop');
+        return;
+      }
+
+      // 跳走之后页面会失去焦点，用这个判断有没有被接走。
+      // Android 走 intent:// 时通常轮不到它（要么开应用要么跳 fallback），但不是所有
+      // Android 浏览器都认 intent://（Firefox、部分 App 内置 WebView 就不认），
+      // 那种情况下什么都不会发生，得靠这个兜底。
       let left = false;
       const onHide = () => { if (document.hidden) left = true; };
       document.addEventListener('visibilitychange', onHide);
       addEventListener('blur', onHide, { once: true });
 
-      location.href = `anoawa://level/${id}`;
+      if (IS_ANDROID) {
+        const back = new URL(location.href);
+        back.searchParams.set('id', id);
+        back.searchParams.set('noapp', '1');
+        location.href = `intent://level/${id}#Intent;scheme=anoawa;package=${ANDROID_PACKAGE};`
+          + `S.browser_fallback_url=${encodeURIComponent(back.href)};end`;
+      } else {
+        location.href = `anoawa://level/${id}`;
+      }
 
       setTimeout(() => {
         document.removeEventListener('visibilitychange', onHide);
         if (left) return;
-        clear(hint);
+        showLaunchHint('failed');
+      }, 1400);
+    }
+
+    /**
+     * @param {'failed'|'notinstalled'|'desktop'} kind
+     *   failed —— 试过了但没被接走，装没装都有可能
+     *   notinstalled —— Android 的 intent:// 明确跳回了 fallback，可以断定没装
+     *   desktop —— 压根没试
+     */
+    function showLaunchHint(kind) {
+      const hint = document.getElementById('launch-hint');
+      if (!hint) return;
+
+      // showBox 会覆写 className（点赞失败的提示共用这个节点），这里显式写回来
+      hint.className = 'callout warning launch-fallback';
+      clear(hint);
+
+      if (kind === 'desktop') {
         hint.append(
-          el('strong', {}, '没能唤起 Anoawa。'),
-          el('p', {}, '这个功能需要支持链接跳转的客户端版本，目前还在开发中。'),
-          el('p', {}, '已经装了游戏的话，可以先打开 Anoawa，在「谱面库 → 在线」里搜索这首曲子。'),
-          // 点这个按钮的人正是最想要客户端的人，顺手给个入口
+          el('strong', {}, '桌面版暂不支持从网页唤起。'),
+          el('p', {}, '在 Anoawa 里打开「谱面库 → 在线」搜索曲名就能找到这张谱面。'),
           el('p', {}, el('a', { href: 'get.html' }, '还没有游戏？获取 Anoawa →')),
         );
-        hint.hidden = false;
-      }, 1400);
+      } else if (kind === 'notinstalled') {
+        hint.append(
+          el('strong', {}, '这台设备上没有找到 Anoawa。'),
+          el('p', {}, '安装包在社区群里发布，装完再回到这一页点「在 Anoawa 中游玩」即可。'),
+          el('p', {}, el('a', { href: 'get.html' }, '获取 Anoawa →')),
+        );
+      } else {
+        hint.append(
+          el('strong', {}, '没能唤起 Anoawa。'),
+          // 装了却没反应，最常见的原因是客户端版本早于支持链接跳转的那版。
+          // 不写死版本号：这一页和客户端不同步发版，写了迟早对不上。
+          el('p', {}, '已经装了游戏的话，多半是版本太旧，去群里拿一份最新安装包。'),
+          el('p', {}, '也可以直接在游戏里打开「谱面库 → 在线」搜索曲名。'),
+          el('p', {}, el('a', { href: 'get.html' }, '还没有游戏？获取 Anoawa →')),
+        );
+      }
+      hint.hidden = false;
+    }
+
+    /**
+     * Android 的 intent:// 没装应用时会跳回带 noapp=1 的本页。把提示亮出来，
+     * 并且**把参数从地址栏抹掉**——不抹的话刷新或分享这个链接都会莫名其妙带着提示。
+     */
+    function handleNoAppRedirect() {
+      const params = new URLSearchParams(location.search);
+      if (params.get('noapp') !== '1') return;
+
+      params.delete('noapp');
+      const query = params.toString();
+      history.replaceState(null, '', query ? `?${query}` : location.pathname);
+
+      showLaunchHint('notinstalled');
+      document.getElementById('launch-hint')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
 
     // ---------- 排行榜 ----------
