@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0d">
+  <title>站内信 · Anoawa 社区</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
+      <nav class="top-actions">
+        <a class="top-link" href="index.html">谱面库</a>
+        <a class="top-link" href="upload.html">上传</a>
+        <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link current" href="inbox.html">站内信</a>
+        <a class="top-link" href="get.html">获取游戏</a>
+        <a class="top-link" href="docs/index.html">使用指南</a>
+        <button class="top-link" type="button" id="logout">退出</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-head">
+      <h1>站内信</h1>
+      <p>通知是发给你一个人的，可以删掉；公告是全站广播，只读。</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="站内信分类">
+      <button class="tab" role="tab" id="tab-notifications" aria-selected="true">通知</button>
+      <button class="tab" role="tab" id="tab-announcements" aria-selected="false">公告</button>
+    </div>
+
+    <div class="inbox-toolbar">
+      <p class="result-meta" id="meta"></p>
+      <button class="button small ghost" type="button" id="clear" hidden>全部清空</button>
+    </div>
+
+    <div class="callout error" id="error" hidden></div>
+    <div class="inbox-list" id="list"></div>
+
+    <div class="pager" id="pager" hidden>
+      <button class="button small" type="button" id="prev">← 上一页</button>
+      <span class="page-info num" id="page-info"></span>
+      <button class="button small" type="button" id="next">下一页 →</button>
+    </div>
+  </main>
+
+  <script type="module">
+    import { requireLogin, describeError, logout } from './js/api.js';
+    import { el, clear, formatDate, parseUtc, showBox, hideBox } from './js/ui.js';
+    import {
+      listNotifications, deleteNotification, clearNotifications, listAnnouncements,
+      PAGE_SIZE, typeLabel, kindLabel, summary, detail, actionFor,
+    } from './js/inbox.js';
+    import {
+      isNotificationRead, markNotificationRead, forgetNotification, forgetAllNotifications,
+      isAnnouncementRead, markAnnouncementRead,
+    } from './js/inbox-read.js';
+
+    if (!requireLogin()) throw new Error('redirecting');
+
+    document.getElementById('logout').addEventListener('click', logout);
+
+    // 顶层作用域有暂时性死区：所有 let/const 必须排在第一次调用之前。
+    // 栽过一次——load() 写在声明上面，进页面一片空白而控制台之外毫无提示。
+    const tabs = {
+      notifications: document.getElementById('tab-notifications'),
+      announcements: document.getElementById('tab-announcements'),
+    };
+    const list = document.getElementById('list');
+    const meta = document.getElementById('meta');
+    const errorBox = document.getElementById('error');
+    const clearButton = document.getElementById('clear');
+    const pager = document.getElementById('pager');
+
+    const state = { tab: 'notifications', page: 1, totalPages: 1 };
+
+    // 翻页和切 tab 都会重入 load()，慢的那次回来时可能已经不是当前视图了
+    let requestSeq = 0;
+
+    for (const [name, button] of Object.entries(tabs)) {
+      button.addEventListener('click', () => {
+        if (state.tab === name) return;
+        state.tab = name;
+        state.page = 1;
+        updateTabs();
+        load();
+      });
+    }
+
+    document.getElementById('prev').addEventListener('click', () => turnPage(-1));
+    document.getElementById('next').addEventListener('click', () => turnPage(1));
+    clearButton.addEventListener('click', promptClear);
+
+    updateTabs();
+    load();
+
+    function updateTabs() {
+      for (const [name, button] of Object.entries(tabs)) {
+        button.setAttribute('aria-selected', String(state.tab === name));
+      }
+      // 公告是全站广播，没有「你的那一份」可清
+      clearButton.hidden = state.tab !== 'notifications';
+    }
+
+    function turnPage(delta) {
+      const next = Math.min(Math.max(1, state.page + delta), state.totalPages);
+      if (next === state.page) return;
+      state.page = next;
+      load();
+      scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function load() {
+      const seq = ++requestSeq;
+      const tab = state.tab;
+
+      hideBox(errorBox);
+      clear(list);
+      meta.textContent = '正在读取…';
+      pager.hidden = true;
+
+      let result;
+      try {
+        result = tab === 'notifications'
+          ? await listNotifications({ page: state.page, pageSize: PAGE_SIZE })
+          : await listAnnouncements({ page: state.page, pageSize: PAGE_SIZE });
+      } catch (error) {
+        if (seq !== requestSeq) return;
+        meta.textContent = '';
+        showBox(errorBox, describeError(error), 'error');
+        return;
+      }
+
+      if (seq !== requestSeq) return;
+
+      const items = result.items ?? [];
+      if (!items.length) {
+        // 删光了最后一页上的通知之后别把人晾在一页空白上
+        if (state.page > 1) {
+          state.page -= 1;
+          load();
+          return;
+        }
+        meta.textContent = '';
+        list.append(el('div', { class: 'empty' },
+          el('h3', {}, tab === 'notifications' ? '暂无通知' : '暂无公告'),
+          el('p', {}, tab === 'notifications'
+            ? '挂名邀请、审核结果这些会出现在这里。'
+            : '有更新日志或维护预告时会发在这里。'),
+        ));
+        return;
+      }
+
+      meta.textContent = tab === 'notifications'
+        ? `共 ${result.totalCount} 条通知`
+        : `共 ${result.totalCount} 条公告`;
+
+      for (const item of items) {
+        list.append(tab === 'notifications' ? notificationRow(item) : announcementRow(item));
+      }
+
+      state.totalPages = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+      if (state.totalPages > 1) {
+        pager.hidden = false;
+        document.getElementById('page-info').textContent = `${result.page} / ${state.totalPages}`;
+        document.getElementById('prev').disabled = result.page <= 1;
+        document.getElementById('next').disabled = result.page >= state.totalPages;
+      }
+    }
+
+    /**
+     * 一行的骨架，通知和公告共用。
+     *
+     * 详情做成行内展开而不是弹窗：站点目前没有任何 modal，为这一处引入一个组件不划算。
+     * 展开即已读——**只是打开收件箱不算**，那样没看的也会被一起标掉。
+     */
+    function buildRow({ tags, summary: summaryText, createdAtUtc, body: bodyNodes, rowAction, markRead }) {
+      const row = el('article', { class: 'inbox-row' });
+      const summaryNode = el('span', { class: 'inbox-summary' }, summaryText);
+      const date = parseUtc(createdAtUtc);
+
+      const main = el('button', {
+        class: 'inbox-main',
+        type: 'button',
+        'aria-expanded': 'false',
+      }, el('span', { class: 'inbox-tags' }, tags), summaryNode, el('span', {
+        class: 'inbox-date',
+        title: date ? date.toLocaleString('zh-CN') : null,
+      }, formatDate(createdAtUtc)));
+
+      const body = el('div', { class: 'inbox-detail', hidden: true }, bodyNodes);
+
+      main.addEventListener('click', () => {
+        const open = body.hidden;
+        body.hidden = !open;
+        main.setAttribute('aria-expanded', String(open));
+        if (!open) return;
+
+        markRead();
+        row.classList.remove('is-unread');
+        row.querySelector('.inbox-new')?.remove();
+      });
+
+      row.append(...[main, rowAction, body].filter(Boolean));
+      return row;
+    }
+
+    function notificationRow(item) {
+      const unread = !isNotificationRead(item.id);
+
+      const tags = [el('span', { class: 'eyebrow' }, typeLabel(item.type))];
+      if (unread) tags.push(el('span', { class: 'eyebrow inbox-new' }, '未读'));
+
+      // 删除放在行上而不是展开后的详情里：删一条不该先逼人读一遍，客户端也是这么摆的
+      const remove = el('button', {
+        class: 'button small ghost inbox-delete',
+        type: 'button',
+        onclick: () => deleteRow(item),
+      }, '删除');
+
+      const action = actionFor(item);
+      const row = buildRow({
+        tags,
+        summary: summary(item),
+        createdAtUtc: item.createdAtUtc,
+        body: [
+          el('p', { class: 'inbox-body' }, detail(item)),
+          action
+            ? el('div', { class: 'inbox-actions' },
+              el('a', { class: 'button small', href: action.href }, action.label))
+            : null,
+        ],
+        rowAction: remove,
+        markRead: () => markNotificationRead(item.id),
+      });
+      if (unread) row.classList.add('is-unread');
+      return row;
+    }
+
+    function announcementRow(item) {
+      const unread = !isAnnouncementRead(item);
+
+      const tags = [el('span', { class: 'eyebrow' }, kindLabel(item.kind))];
+      if (item.version) tags.push(el('span', { class: 'eyebrow inbox-version num' }, item.version));
+      if (unread) tags.push(el('span', { class: 'eyebrow inbox-new' }, '未读'));
+
+      // 正文是 Markdown 原文，服务端不渲染，这里也不渲染——原样展示比渲染错了强，
+      // 而且不用在一个「一律不碰 innerHTML」的仓库里开自己拼 HTML 的口子
+      const body = [el('p', { class: 'inbox-body' }, item.body || '')];
+      if (item.updatedAtUtc && item.updatedAtUtc !== item.createdAtUtc) {
+        body.push(el('p', { class: 'inbox-edited' }, `最后编辑于 ${formatDate(item.updatedAtUtc)}`));
+      }
+
+      const row = buildRow({
+        tags,
+        summary: item.title || kindLabel(item.kind),
+        createdAtUtc: item.createdAtUtc,
+        body,
+        markRead: () => markAnnouncementRead(item),
+      });
+      if (unread) row.classList.add('is-unread');
+      return row;
+    }
+
+    async function deleteRow(item) {
+      try {
+        await deleteNotification(item.id);
+      } catch (error) {
+        showBox(errorBox, describeError(error), 'error');
+        return;
+      }
+      // 这一行再也不会被问到了，已读记录留着只是垃圾
+      forgetNotification(item.id);
+      load();
+    }
+
+    async function promptClear() {
+      const confirmed = window.confirm(
+        '清空全部通知？\n\n'
+        + '这些通知会从服务端删除，所有设备上都会消失，不可恢复。\n'
+        + '注意：删掉挂名邀请的通知不等于拒绝邀请，邀请仍然挂在谱面上。');
+      if (!confirmed) return;
+
+      clearButton.disabled = true;
+      try {
+        await clearNotifications();
+      } catch (error) {
+        showBox(errorBox, describeError(error), 'error');
+        return;
+      } finally {
+        clearButton.disabled = false;
+      }
+
+      forgetAllNotifications();
+      state.page = 1;
+      load();
+    }
+  </script>
+</body>
+</html>

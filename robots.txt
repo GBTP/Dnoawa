@@ -5,5 +5,6 @@ Disallow: /login.html
 Disallow: /upload.html
 Disallow: /user.html
 Disallow: /level.html
+Disallow: /inbox.html
 
 Sitemap: https://anoawa.cc/sitemap.xml

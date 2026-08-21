@@ -10,6 +10,7 @@ Anoawa 社区音乐游戏的网站，同一个站点承载两部分。
 ├── login.html     注册 / 登录 / 改密码
 ├── level.html     谱面详情：试听、排行榜、拉起客户端
 ├── upload.html    上传谱面
+├── inbox.html     站内信：通知（可删）与全站公告（只读）
 ├── app.css        应用共用样式（暗色，与游戏内视觉一致）
 ├── js/            应用脚本，原生 ES module
 └── vendor/        随仓库提交的 WASM 依赖，见下

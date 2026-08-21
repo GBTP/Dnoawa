@@ -231,6 +231,8 @@ textarea.input { height: auto; padding: 10px 12px; line-height: 1.6; resize: ver
 .button.ghost:hover:not(:disabled) { border-color: transparent; color: var(--text); }
 .button.block { width: 100%; }
 .button.small { height: 32px; padding: 0 12px; font-size: 13px; }
+/* .button 的 display 会盖过 [hidden]，不压一下 hidden 的按钮照样显示 */
+.button[hidden] { display: none; }
 
 /* ---------- 提示条 ---------- */
 
@@ -1281,6 +1283,77 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .title-option.active { color: var(--bg); border-color: var(--text); background: var(--text); }
 .title-option .locale { flex: 0 0 auto; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
 .title-option .value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 站内信 ---------- */
+
+/* 顶栏未读角标。交互色就是白，所以角标是反白的小方块，不引入新的强调色。
+   类选择器的 display 会盖过 [hidden]，必须配一条压回去——这坑栽过三次 */
+.top-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 6px;
+  padding: 0 4px;
+  color: var(--bg);
+  background: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+.top-badge[hidden] { display: none; }
+
+.inbox-toolbar { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.inbox-toolbar .result-meta { margin-bottom: 16px; }
+
+.inbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  border: 1px solid var(--line);
+}
+.inbox-row + .inbox-row { margin-top: -1px; }
+/* 未读那条的左边一条竖线。只用白，读过之后线消失，列表就安静下来 */
+.inbox-row.is-unread { border-left: 2px solid var(--text); }
+
+.inbox-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.inbox-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inbox-new { color: var(--text); }
+.inbox-version { color: var(--muted); letter-spacing: .06em; text-transform: none; }
+.inbox-summary { color: var(--muted); font-size: 14.5px; }
+.inbox-row.is-unread .inbox-summary { color: var(--text); }
+.inbox-date { color: var(--faint); font-size: 12.5px; }
+.inbox-delete { flex: 0 0 auto; align-self: center; margin-right: 9px; }
+
+.inbox-detail {
+  flex: 1 1 100%;
+  padding: 0 15px 15px;
+  border-top: 1px solid var(--line);
+  margin-top: -1px;
+}
+.inbox-detail[hidden] { display: none; }
+/* 公告正文是 Markdown 原文，服务端和客户端都不渲染，这里也原样摆出来 */
+.inbox-body {
+  margin: 15px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.inbox-edited { margin: 10px 0 0; color: var(--faint); font-size: 12.5px; }
+.inbox-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 
 /* ==========================================================================
    响应式

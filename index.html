@@ -19,6 +19,7 @@
         <a class="top-link current" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
         <a class="top-link" href="user.html">我的空间</a>
+        <a class="top-link" href="inbox.html">站内信<span class="top-badge num" id="inbox-badge" hidden></span></a>
         <a class="top-link" href="get.html">获取游戏</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
@@ -89,6 +90,7 @@
     import { requireLogin, describeError, logout, getProfile } from './js/api.js';
     import { listLevels, getHotLevels, SORT_OPTIONS, PAGE_SIZE, HOT_PERIODS } from './js/levels.js';
     import { levelCard } from './js/level-card.js';
+    import { refreshInboxBadge } from './js/inbox.js';
     import {
       el, showBox, hideBox, clear, formatCount,
     } from './js/ui.js';
@@ -99,6 +101,10 @@
     document.getElementById('intro')?.remove();
 
     document.getElementById('logout').addEventListener('click', logout);
+
+    // 未读角标只在这一页和「我的空间」拉：其余页面（上传、编辑）正在干活，
+    // 不值得为一个数字各多发两个请求。失败时不显示，见 refreshInboxBadge 的注释。
+    refreshInboxBadge(document.getElementById('inbox-badge'));
 
     const stored = getProfile();
     const greeting = document.getElementById('greeting');

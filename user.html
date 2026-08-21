@@ -16,6 +16,7 @@
         <a class="top-link" href="index.html">谱面库</a>
         <a class="top-link" href="upload.html">上传</a>
         <a class="top-link current" href="user.html">我的空间</a>
+        <a class="top-link" href="inbox.html">站内信<span class="top-badge num" id="inbox-badge" hidden></span></a>
         <a class="top-link" href="get.html">获取游戏</a>
         <a class="top-link" href="docs/index.html">使用指南</a>
         <button class="top-link" type="button" id="logout">退出</button>
@@ -29,7 +30,7 @@
 
   <script type="module">
     import {
-      requireLogin, describeError, logout, ApiError, getToken, saveSession, clearSession,
+      requireLogin, describeError, logout, ApiError, getToken, getProfile, saveSession, clearSession,
     } from './js/api.js';
     import { deleteAccount, requestVerificationCode } from './js/auth.js';
     import {
@@ -44,6 +45,7 @@
       getMyLevels, getUserLevels, getRecentPlays,
     } from './js/users.js';
     import { levelCard } from './js/level-card.js';
+    import { refreshInboxBadge } from './js/inbox.js';
     import { uploadFile } from './js/tus.js';
     import { PRESET, processImage } from './js/media.js';
     import {
@@ -53,6 +55,9 @@
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
+
+    // 顶栏角标算的恒是「我」的未读，跟这一页在看谁无关
+    refreshInboxBadge(document.getElementById('inbox-badge'));
 
     const content = document.getElementById('content');
     const requested = new URLSearchParams(location.search).get('id');
@@ -217,8 +222,11 @@
           save.textContent = '保存中…';
           const updated = await updateProfile(patch);
 
-          // 顶栏和谱面库的问候语读的是本地存档，一起更新
+          // 顶栏和谱面库的问候语读的是本地存档，一起更新。
+          // saveSession 是整份覆盖，必须先摊开原来那份——activeProfileId 和 profileCount
+          // 不在这次响应里，直接写会把它们抹掉（站内信的已读记录按 activeProfileId 分区）。
           saveSession(getToken(), {
+            ...getProfile(),
             nickname: updated.nickname,
             avatarUrl: updated.avatarUrl,
           });
@@ -394,8 +402,10 @@
         if (!window.confirm(`切换到「${item.nickname}」？之后的上传和成绩都会记在这个身份下。`)) return;
         try {
           const result = await issueProfileToken(item.id);
-          // 换掉落盘的 profileToken，否则后续请求还是以原身份发出
+          // 换掉落盘的 profileToken，否则后续请求还是以原身份发出。
+          // 同样是整份覆盖，摊开原来那份保住 profileCount（谱面库的「切换身份」提示读它）
           saveSession(result.token, {
+            ...getProfile(),
             nickname: result.profile.nickname,
             avatarUrl: result.profile.avatarUrl,
             activeProfileId: result.profile.id,
