@@ -111,7 +111,16 @@
 
       // /api/auth/profile 和 /api/auth/users/{id} 给的已经是 256px 缩略图，
       // avatarImage 里的拼接对带 query 的地址是幂等的
-      const avatar = avatarImage(anonymized ? null : profile.avatarUrl, name, { size: 256 });
+      //
+      // 看自己时头像本身就是「换头像」的入口。换头像出错要显示一句话，而头像那一列
+      // 只有 96px 宽，放不下——callout 单独占资料区里的一整行。
+      const canEditAvatar = isSelf && !anonymized;
+      const avatarStatus = canEditAvatar
+        ? el('div', { class: 'callout avatar-status', hidden: true })
+        : null;
+      const avatar = canEditAvatar
+        ? avatarPicker(profile, name, avatarStatus)
+        : avatarImage(anonymized ? null : profile.avatarUrl, name, { size: 256 });
 
       const meta = el('div', { class: 'profile-meta' },
         el('h1', {}, name),
@@ -150,6 +159,7 @@
       }
 
       const header = el('section', { class: 'profile' }, avatar, meta);
+      if (avatarStatus) header.append(avatarStatus);
       if (isSelf) header.append(editPanel(profile));
       content.append(header);
       if (isSelf) content.append(profilesPanel(profile));
@@ -184,6 +194,87 @@
       ].filter(Boolean));
     }
 
+    /**
+     * 自己的头像，点一下就能换。
+     *
+     * 换头像原来只藏在「编辑资料」面板里的一个按钮后面——头像就大大方方摆在那儿，
+     * 没人会想到先去展开一个表单。这里让头像自己当入口：选完文件立刻处理、上传、
+     * 生效，中间没有「保存」这一步。头像是单独一个 PUT，跟昵称那次改动本来就没
+     * 有依赖关系，不批在一起也不会多花一次请求。
+     *
+     * @param {object} profile
+     * @param {string} name 已经过 displayName 处理的展示名
+     * @param {HTMLElement} status 出错时用的 callout
+     */
+    function avatarPicker(profile, name, status) {
+      let avatar = avatarImage(profile.avatarUrl, name, { size: 256 });
+      const hint = el('span', { class: 'avatar-edit-hint' }, '更换头像');
+      const button = el('button', {
+        class: 'avatar-edit', type: 'button', title: '更换头像', 'aria-label': '更换头像',
+      }, avatar, hint);
+      // <button> 里不能嵌 <input>（交互元素不能套交互元素），所以文件框是它的兄弟节点。
+      // 它带 hidden，UA 样式表会把它 display:none，在 flex 行里不占位。
+      const input = el('input', { type: 'file', accept: 'image/*', hidden: true });
+
+      button.addEventListener('click', () => input.click());
+
+      input.addEventListener('change', async () => {
+        const file = input.files[0];
+        // 打开文件框又取消也会触发 change，这时 files 是空的
+        if (!file) return;
+        // 先清空，否则连着选同一个文件第二次不会再触发 change
+        input.value = '';
+
+        hideBox(status);
+        button.disabled = true;
+        // 上传中要让覆盖层一直显示。不能靠 :hover——Chrome 对 disabled 的按钮
+        // 不派发指针事件，鼠标停在上面 :hover 也不匹配，进度就没地方显示了
+        button.classList.add('is-busy');
+
+        try {
+          hint.textContent = '处理中…';
+          // 512 + JPEG 90 跟客户端对齐（UserProfilePanel.OnAvatarChosen）。显示端
+          // 拿到的是 LeanCloud 的 imageView/1 缩略图，先压一道免得白传大图。
+          // 注意这里保住了宽高比，客户端那边是硬拉成 512×512 的——不跟它，
+          // imageView/1 本来就是居中裁剪，拉扁了各端都变形。
+          // accept="image/*" 挡不住"所有文件"里选出来的东西，解不开时
+          // createImageBitmap 抛的是浏览器原文（英文），换成一句能照做的话
+          const blob = await processImage(file, { maxWidth: 512, maxHeight: 512, quality: 0.9 })
+            .catch(() => { throw new Error('这张图读不出来，换一张 JPEG 或 PNG 试试'); });
+
+          hint.textContent = '上传中…';
+          const avatarFileId = await uploadFile(blob, { fileType: 'avatar', name: 'avatar.jpg' });
+
+          hint.textContent = '保存中…';
+          const updated = await updateProfile({ avatarFileId });
+
+          // 顶栏和谱面库的问候语读的是本地存档，一起更新。saveSession 是整份覆盖，
+          // 必须先摊开原来那份——activeProfileId 和 profileCount 不在这次响应里，
+          // 直接写会把它们抹掉（站内信的已读记录按 activeProfileId 分区）。
+          saveSession(getToken(), {
+            ...getProfile(),
+            nickname: updated.nickname,
+            avatarUrl: updated.avatarUrl,
+          });
+
+          // 新头像是一个新地址，不存在缓存问题，就地换掉即可。这一页只有这一处
+          // 显示自己的头像（谱面卡片上没有），不用整页重载
+          const next = avatarImage(updated.avatarUrl, name, { size: 256 });
+          avatar.replaceWith(next);
+          avatar = next;
+          profile.avatarUrl = updated.avatarUrl;
+        } catch (error) {
+          showBox(status, `头像没换成：${describeError(error)}`, 'error');
+        } finally {
+          button.disabled = false;
+          button.classList.remove('is-busy');
+          hint.textContent = '更换头像';
+        }
+      });
+
+      return el('div', { class: 'avatar-slot' }, button, input);
+    }
+
     // ---------- 编辑自己的资料 ----------
 
     function editPanel(profile) {
@@ -192,16 +283,8 @@
 
       const nickname = el('input', { class: 'input', maxlength: '24', value: profile.nickname ?? '' });
       const bilibili = el('input', { class: 'input', maxlength: '20', value: profile.bilibiliUid ?? '', placeholder: '纯数字 UID，留空即解绑' });
-      const avatarInput = el('input', { type: 'file', accept: 'image/*', hidden: true });
-      const avatarButton = el('button', { class: 'button small', type: 'button' }, '更换头像');
-      const avatarName = el('span', { class: 'profile-sub' }, '未选择');
       const save = el('button', { class: 'button primary small', type: 'button' }, '保存');
       const status = el('div', { class: 'callout', hidden: true });
-
-      avatarButton.addEventListener('click', () => avatarInput.click());
-      avatarInput.addEventListener('change', () => {
-        avatarName.textContent = avatarInput.files[0]?.name || '未选择';
-      });
 
       toggle.addEventListener('click', () => {
         box.hidden = !box.hidden;
@@ -223,21 +306,11 @@
           const nextBilibili = bilibili.value.trim();
           if (nextBilibili !== (profile.bilibiliUid ?? '')) patch.bilibiliUid = nextBilibili;
 
-          const file = avatarInput.files[0];
-          if (file) {
-            save.textContent = '处理头像…';
-            // 头像后端会再生成 256px 缩略图，这里先压到 512 免得白传大图
-            const blob = await processImage(file, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
-            save.textContent = '上传头像…';
-            patch.avatarFileId = await uploadFile(blob, { fileType: 'avatar', name: 'avatar.jpg' });
-          }
-
           if (!Object.keys(patch).length) {
             showBox(status, '没有需要保存的改动', '');
             return;
           }
 
-          save.textContent = '保存中…';
           const updated = await updateProfile(patch);
 
           // 顶栏和谱面库的问候语读的是本地存档，一起更新。
@@ -264,9 +337,11 @@
           el('label', {}, 'Bilibili UID'),
           bilibili,
           el('p', { class: 'hint' }, '目前不做归属验证，页面上会标注“未验证”。留空即解绑。')),
+        // 头像不在这张表单里：点上面那张头像就能换，选完立刻生效。
+        // 留这一行是给展开面板找头像的人看的
         el('div', { class: 'field' },
           el('label', {}, '头像'),
-          el('div', { class: 'avatar-pick' }, avatarButton, avatarName, avatarInput)),
+          el('p', { class: 'hint' }, '点上面那张头像即可更换，选完文件立刻生效。')),
         save,
         status,
       );

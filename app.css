@@ -938,6 +938,46 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   font-weight: 600;
 }
 
+/* 看自己时，头像本身就是「换头像」的入口。那条提示跟谱面卡片右上角的「编辑」
+   角标（.card-edit）同一套语言：hover 才浮出来，静态时页面上不多一个控件。
+   .avatar-slot 里除了按钮还有那个 hidden 的 <input type=file>——<button> 里不能
+   嵌交互元素，只能放成兄弟节点；尺寸一路由里面的 .avatar 撑出来，不复写一遍。 */
+.avatar-slot { flex: 0 0 auto; }
+.avatar-edit {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+/* 压在头像下沿的一条，不做整块蒙版：触屏那边它是常驻的，盖住整张脸就没法看了 */
+.avatar-edit-hint {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 2px 4px;
+  color: var(--text);
+  background: rgba(11, 11, 13, .82);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: center;
+  opacity: 0;
+  transition: opacity .15s var(--ease);
+}
+/* is-busy 这一支是给上传中用的：那会儿按钮是 disabled 的，Chrome 不给它派发
+   指针事件，鼠标停在上面 :hover 也不匹配，进度就没地方显示了 */
+.avatar-edit:hover .avatar-edit-hint,
+.avatar-edit:focus-visible .avatar-edit-hint,
+.avatar-edit.is-busy .avatar-edit-hint { opacity: 1; }
+
+/* 触屏没有 hover，那条就常驻——否则「点头像能换头像」在手机上没有任何提示 */
+@media (hover: none) {
+  .avatar-edit-hint { opacity: 1; }
+}
+
+/* 换头像的报错。头像那一列只有 96px 宽，放不下一句话，让它单独占资料区的一行 */
+.avatar-status { flex: 0 0 100%; margin: 0; }
+
 .profile-meta { flex: 1 1 240px; min-width: 0; }
 .profile-meta h1 {
   margin: 0;
@@ -990,7 +1030,6 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   max-width: 460px;
 }
 .profile-edit[hidden] { display: none; }
-.avatar-pick { display: flex; align-items: center; gap: 12px; }
 
 /* ---------- 用户数据（身份）管理 ---------- */
 
