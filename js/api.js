@@ -5,41 +5,32 @@
  * - 所有错误响应都是 { "message": "..." }，直接拿来显示给用户
  * - 401 = 凭据无效/过期；403 = 资源存在但当前不可见；404 才是真的没了
  * - 429 带 Retry-After 秒数
+ *
+ * 打哪条线由 endpoint.js 决定（两个域名指向同一个后端实例），本机 ?api= 覆盖也搬去了
+ * 那里。这里只负责在请求失败时按 endpoint.js 的判据决定重试还是抛出。
  */
 
-export const API_BASE = resolveApiBase();
-
-/**
- * 默认打生产后端。
- *
- * 本地开发时生产 CORS 不放行 localhost（Cors:DevelopmentOrigins 只在后端跑
- * Development 环境时才追加），所以本机调试要自己起一份后端，用
- * `?api=http://localhost:58271` 把地址切过去，会记住；`?api=` 清除。
- *
- * **只在页面自身来自 localhost 时才认这个参数。** 线上放开的话，
- * 一条 ?api=https://evil.example 链接就能把用户的账号密码送去别处。
- */
-function resolveApiBase() {
-  const DEFAULT = 'https://bnoawa.phi.zone';
-  const KEY = 'anoawa.apiBase';
-
-  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-  if (!isLocal) return DEFAULT;
-
-  const requested = new URLSearchParams(location.search).get('api');
-  if (requested !== null) {
-    if (requested) localStorage.setItem(KEY, requested.replace(/\/+$/, ''));
-    else localStorage.removeItem(KEY);
-  }
-
-  const base = localStorage.getItem(KEY) || DEFAULT;
-  if (base !== DEFAULT) console.info(`[anoawa] API 指向 ${base}（本机调试覆盖）`);
-  return base;
-}
+import {
+  getApiBase, resolveFailure, scheduleProbe, fetchWithTimeout, isEdgeFailure,
+} from './endpoint.js';
 
 const TOKEN_KEY = 'anoawa.token';
 const PROFILE_KEY = 'anoawa.profile';
 const LOGIN_PAGE = 'login.html';
+
+/**
+ * 单个请求的超时。为什么非有不可见 endpoint.js 的 fetchWithTimeout。
+ *
+ * 12 秒的取法：既要盖得住慢网下的正常请求，又要短到用户还没决定刷新页面。
+ * tus 分片不走这里，它在 tus.js 里有自己的超时（1MB 在慢上行链路上会超过 12 秒）。
+ */
+const REQUEST_TIMEOUT_MS = 12_000;
+
+/** 链路没坏、但这一发失败了的时候，只有这些方法能原地重试。理由见 canRetry。 */
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD']);
+
+const MAX_WRITE_LOCK_RETRIES = 2;
+const MAX_WRITE_LOCK_BACKOFF_MS = 3000;
 
 /**
  * accountToken **只放内存，绝不落盘**。
@@ -163,47 +154,94 @@ export async function request(path, options = {}) {
   const token = auth ? (account ? accountToken : getToken()) : null;
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let response;
-  try {
-    response = await fetch(API_BASE + path, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
-    });
-  } catch (error) {
-    if (error?.name === 'AbortError') throw error;
-    // fetch 只在网络层失败时抛异常，HTTP 错误码是不抛的。所以走到这里
-    // 要么真断网，要么被 CORS 拦下——后者在控制台有详细报错，页面上看不到。
-    throw new ApiError('网络请求失败，请检查网络连接后重试', 0);
+  // body 提前序列化成字符串，重试时才能原样重发（流式 body 是一次性的）。
+  const init = {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  };
+
+  // 每个请求最多用掉一次重试机会（切线路或原地重试），线路来回抖时不至于打出重试风暴。
+  let retried = false;
+  let writeLockRetries = 0;
+
+  for (;;) {
+    const base = getApiBase();
+    let response;
+
+    try {
+      response = await fetchWithTimeout(base + path, init, signal, REQUEST_TIMEOUT_MS);
+    } catch (error) {
+      // 调用方自己取消的，原样抛回去
+      if (signal?.aborted) throw error;
+
+      // fetch 只在网络层失败时抛异常，HTTP 错误码是不抛的。所以走到这里要么真断网、
+      // 要么被 CORS 拦下（控制台有详细报错，页面上看不到）、要么连接进了黑洞被上面
+      // 那个超时掐掉。三种症状一样，交给 canRetry 用探活分开。
+      if (retried || !(await canRetry(base, method))) {
+        throw new ApiError('网络请求失败，请检查网络连接后重试', 0);
+      }
+      retried = true;
+      continue;
+    }
+
+    // 边缘或反代层的失败，请求没到过后端，和上面同一类处理
+    if (isEdgeFailure(response.status)) {
+      if (retried || !(await canRetry(base, method))) {
+        throw new ApiError('线路暂时不可用，请稍后重试', response.status);
+      }
+      retried = true;
+      continue;
+    }
+
+    if (response.status === 204) {
+      scheduleProbe();
+      return null;
+    }
+
+    const payload = await readBody(response);
+
+    if (response.ok) {
+      // 页面已经拿到数据了，这时候才轮到测速优选，结果下次导航生效。放在这里是因为
+      // 只需要一个钩子，不用去改每个页面的引导代码；重复调用由 scheduleProbe 自己挡掉。
+      scheduleProbe();
+      return payload;
+    }
+
+    const retryAfterSeconds = parseRetryAfter(response.headers.get('Retry-After'));
+
+    // SQLite 写锁争用。后端的状态码规范里明写了这个 503 可以直接重试，而写锁超时
+    // 意味着事务根本没提交，所以 POST 也安全。**不要**顺手把 429 也加进来——那个要
+    // 让用户看见，describeError 会告诉他还得等多久。
+    if (response.status === 503 && writeLockRetries < MAX_WRITE_LOCK_RETRIES) {
+      writeLockRetries += 1;
+      await delay(Math.min((retryAfterSeconds ?? 1) * 1000, MAX_WRITE_LOCK_BACKOFF_MS));
+      continue;
+    }
+
+    // accountToken 只有 1 小时，过期是常态。这时候不能清 profileToken 把人踢出去，
+    // 只要清掉账号凭据、让调用方重新 elevate（输一次密码）即可。
+    if (response.status === 401 && account) {
+      accountToken = null;
+      throw new ApiError('账号凭据已过期，请重新验证密码', 401);
+    }
+
+    if (response.status === 401 && auth && redirectOnUnauthorized) {
+      // token 过期、改过密码、被撤销管理员、账号已注销——本地凭据已经没用了。
+      clearSession();
+      const next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
+      location.replace(`${LOGIN_PAGE}?next=${next}&expired=1`);
+      throw new ApiError('登录已失效，请重新登录', 401);
+    }
+
+    // 其余状态码都是后端的真实答复。**绝不换线重试**——两个域名是同一个实例，
+    // 换条线只会拿到一模一样的 400/403/404/429/500。
+    throw new ApiError(
+      payload?.message || defaultMessage(response.status),
+      response.status,
+      retryAfterSeconds,
+    );
   }
-
-  if (response.status === 204) return null;
-
-  const payload = await readBody(response);
-
-  if (response.ok) return payload;
-
-  // accountToken 只有 1 小时，过期是常态。这时候不能清 profileToken 把人踢出去，
-  // 只要清掉账号凭据、让调用方重新 elevate（输一次密码）即可。
-  if (response.status === 401 && account) {
-    accountToken = null;
-    throw new ApiError('账号凭据已过期，请重新验证密码', 401);
-  }
-
-  if (response.status === 401 && auth && redirectOnUnauthorized) {
-    // token 过期、改过密码、被撤销管理员、账号已注销——本地凭据已经没用了。
-    clearSession();
-    const next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
-    location.replace(`${LOGIN_PAGE}?next=${next}&expired=1`);
-    throw new ApiError('登录已失效，请重新登录', 401);
-  }
-
-  throw new ApiError(
-    payload?.message || defaultMessage(response.status),
-    response.status,
-    parseRetryAfter(response.headers.get('Retry-After')),
-  );
 }
 
 export const get = (path, options) => request(path, { ...options, method: 'GET' });
@@ -212,6 +250,28 @@ export const put = (path, body, options) => request(path, { ...options, method: 
 export const del = (path, options) => request(path, { ...options, method: 'DELETE' });
 
 // ---------- 内部 ----------
+
+/**
+ * 链路层失败之后，判断这一发能不能重试。
+ *
+ * 判据在 endpoint.js 的 resolveFailure：探活两条线，把「线路坏了」和「这个请求自己
+ * 的事」分开。
+ *
+ * - 线路坏了：两个域名是同一个实例，所以这种故障按定义就是请求**没到过后端**，
+ *   切线重试对任何方法都安全，不会重复提交。
+ * - 线路没坏：不能假设请求没被处理——它可能已经落库、只是回程丢了。这时只有幂等
+ *   方法能原地重试，POST 必须把错误抛给用户，让他自己决定要不要再来一次。
+ */
+async function canRetry(base, method) {
+  const verdict = await resolveFailure(base);
+  if (verdict === 'switched') return true;
+  if (verdict === 'line-ok') return IDEMPOTENT_METHODS.has(method);
+  return false; // all-down：真断网，重试只是多等一个超时
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function readBody(response) {
   const text = await response.text();

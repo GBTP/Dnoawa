@@ -40,8 +40,16 @@ Anoawa 社区音乐游戏的网站，同一个站点承载两部分。
 
 ## 后端
 
-社区应用调 `https://bnoawa.phi.zone`（Bnoawa）。该域名的 CORS 白名单里必须有
-本站的源，否则浏览器一个请求都发不出去。
+社区应用调 Bnoawa，它有两个对外域名、指向同一个后端实例：
+
+| | |
+|---|---|
+| 主线路 | `https://bnoawa.phi.zone`（Cloudflare） |
+| 备用线路 | `https://bnoawa.10minstudio.work`（TapTap 云引擎，国内 CDN） |
+
+`js/endpoint.js` 负责在两者之间选路并在出错时切换，规则和判据见 `CLAUDE.md` 的
+「两条线路的选择与切换」。**两个域名的 CORS 白名单里都必须有本站的源**，
+否则浏览器一个请求都发不出去。
 
 ## 本地预览
 
