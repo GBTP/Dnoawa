@@ -16,7 +16,7 @@
  * 而 tus 文件 30 分钟就过期，重来一遍代价很大——这个能力是值得的。
  */
 
-import { getToken, ApiError } from './api.js';
+import { getToken, ApiError, adoptRefreshedToken } from './api.js';
 import { getApiBase, resolveFailure, fetchWithTimeout, isEdgeFailure } from './endpoint.js';
 
 const CHUNK_SIZE = 1024 * 1024;
@@ -52,11 +52,10 @@ export async function uploadFile(blob, { fileType, name, onProgress, signal }) {
     throw new Error(`不支持的 fileType: ${fileType}`);
   }
 
-  const token = getToken();
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  const session = createSession();
 
   // 1. 创建上传
-  const uploadPath = await createUpload(blob, { fileType, name, authHeader, signal });
+  const uploadPath = await createUpload(blob, { fileType, name, session, signal });
 
   // 2. 分片 PATCH
   let offset = 0;
@@ -74,7 +73,7 @@ export async function uploadFile(blob, { fileType, name, onProgress, signal }) {
       response = await fetchWithTimeout(uploadUrl, {
         method: 'PATCH',
         headers: {
-          ...authHeader,
+          ...session.headers,
           'Tus-Resumable': TUS_VERSION,
           'Upload-Offset': String(offset),
           'Content-Type': 'application/offset+octet-stream',
@@ -84,7 +83,7 @@ export async function uploadFile(blob, { fileType, name, onProgress, signal }) {
     } catch (error) {
       if (signal?.aborted) throw error;
       attempts += 1;
-      offset = await recover(uploadPath, authHeader, signal, attempts);
+      offset = await recover(uploadPath, session, signal, attempts);
       onProgress?.(offset / blob.size);
       continue;
     }
@@ -92,10 +91,14 @@ export async function uploadFile(blob, { fileType, name, onProgress, signal }) {
     // 边缘或反代挂了，请求没到过后端。和上面同一类，区别只是它给了个状态码。
     if (isEdgeFailure(response.status)) {
       attempts += 1;
-      offset = await recover(uploadPath, authHeader, signal, attempts);
+      offset = await recover(uploadPath, session, signal, attempts);
       onProgress?.(offset / blob.size);
       continue;
     }
+
+    // 分片是全站最密集的一串请求，续期头很可能落在其中一发上。放在状态码分支之前读，
+    // 理由同 api.js。
+    session.absorb(response);
 
     if (!response.ok) {
       // 这里的 4xx 是后端的真实答复，**不重试也不换线**——换条线是同一个实例，
@@ -127,7 +130,7 @@ export async function uploadFile(blob, { fileType, name, onProgress, signal }) {
  * 而且 30 分钟本来也会过期。所以这里比 api.js 的判据更宽：只要不是两条线都断，
  * 就再试一次。
  */
-async function createUpload(blob, { fileType, name, authHeader, signal }) {
+async function createUpload(blob, { fileType, name, session, signal }) {
   for (let attempt = 1; ; attempt += 1) {
     const base = getApiBase();
     let created;
@@ -136,7 +139,7 @@ async function createUpload(blob, { fileType, name, authHeader, signal }) {
       created = await fetchWithTimeout(`${base}/api/files`, {
         method: 'POST',
         headers: {
-          ...authHeader,
+          ...session.headers,
           'Tus-Resumable': TUS_VERSION,
           'Upload-Length': String(blob.size),
           'Upload-Metadata': encodeMetadata({ name, fileType }),
@@ -152,6 +155,8 @@ async function createUpload(blob, { fileType, name, authHeader, signal }) {
       await requireLineUsable(base, attempt);
       continue;
     }
+
+    session.absorb(created);
 
     if (!created.ok) {
       throw new ApiError(
@@ -176,7 +181,7 @@ async function createUpload(blob, { fileType, name, authHeader, signal }) {
  * 也继续重试，而 api.js 那边对非幂等方法是直接抛的——差别在于 tus 有服务端 offset
  * 这个权威事实可查：不管上一片到底写进去没有，HEAD 一次就知道，重发不会写重。
  */
-async function recover(uploadPath, authHeader, signal, attempts) {
+async function recover(uploadPath, session, signal, attempts) {
   const verdict = await resolveFailure(getApiBase());
 
   if (verdict === 'all-down') {
@@ -186,7 +191,7 @@ async function recover(uploadPath, authHeader, signal, attempts) {
     throw new ApiError('上传中断，请重试', 0);
   }
 
-  return headOffset(getApiBase() + uploadPath, authHeader, signal);
+  return headOffset(getApiBase() + uploadPath, session, signal);
 }
 
 /** 创建阶段的判线：链路坏了就已经切好了，两条都断才放弃。 */
@@ -206,12 +211,12 @@ async function requireLineUsable(base, attempt) {
  * 后端不用改：HEAD 在 CORS 策略的 WithMethods 里，Upload-Offset 在 WithExposedHeaders
  * 里，tus 的 OnAuthorizeAsync 对 HEAD 一样放行。
  */
-async function headOffset(url, authHeader, signal) {
+async function headOffset(url, session, signal) {
   let response;
   try {
     response = await fetchWithTimeout(url, {
       method: 'HEAD',
-      headers: { ...authHeader, 'Tus-Resumable': TUS_VERSION },
+      headers: { ...session.headers, 'Tus-Resumable': TUS_VERSION },
       cache: 'no-store',
     }, signal, HEAD_TIMEOUT_MS);
   } catch (error) {
@@ -220,6 +225,8 @@ async function headOffset(url, authHeader, signal) {
     // 抛裸 TypeError 只会让上传界面显示 "Failed to fetch"。
     throw new ApiError('无法确认上传进度，请重试', 0);
   }
+
+  session.absorb(response);
 
   // tus 文件 30 分钟过期，断得久了会走到这
   if (response.status === 404 || response.status === 410) {
@@ -234,6 +241,30 @@ async function headOffset(url, authHeader, signal) {
     throw new ApiError('服务端没有返回 Upload-Offset，无法续传', 0);
   }
   return serverOffset;
+}
+
+/**
+ * 这次上传用的凭据。**必须是可变的。**
+ *
+ * 服务端可能在任意一个响应里换发新的 profileToken（滑动续期，见 api.js 的
+ * adoptRefreshedToken）。不跟着换的话，后面每一片都还带着旧的那张，服务端就一片一片地
+ * 重新签发——一张 70MB 的谱面是七十来片，等于七十次 RSA 签名全白签，而新 token 一张
+ * 也没被用上。
+ *
+ * headers 写成 getter：调用点是 `{ ...session.headers, ... }`，展开发生在发请求那一刻，
+ * 换过之后自然带上新的。
+ */
+function createSession() {
+  let token = getToken();
+  return {
+    get headers() {
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+    absorb(response) {
+      const refreshed = adoptRefreshedToken(response, token);
+      if (refreshed) token = refreshed;
+    },
+  };
 }
 
 /** tus 的 Upload-Metadata 是 `key base64(value)` 用逗号分隔。 */

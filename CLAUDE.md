@@ -28,12 +28,29 @@
 
 | | profileToken | accountToken |
 |---|---|---|
-| 存哪 | `localStorage`，7 天 | **只放内存**，1 小时 |
+| 存哪 | `localStorage`，30 天且会滑动续期 | **只放内存**，1 小时，从不续期 |
 | 谁要 | 默认所有端点 | `/api/profiles/*`、删谱面、生成谱面转让码 |
 
 accountToken 不落盘是**隐私**要求不是权限要求：账号级端点的每个响应都在回答
 「这个账号名下有哪些身份」，那是小号之间唯一可关联的信息。`api.js` 的 `request()`
 用 `account: true` 切换，拿错了后端是 403 而不是静默降级。
+
+**profileToken 会滑动续期，网页端必须接住。** 剩余寿命少于 25 天时（`JwtSettings` 的
+`ExpirationDays: 30` / `RenewWhenRemainingDays: 25`），服务端在响应头 `X-Refreshed-Token`
+里带回一张新的——一直在用就一直在线，实际闲置门槛是 25～30 天。三件容易漏的事：
+
+1. **要在状态码分支之前读。** token 有效、只是该端点不归它管时会拿到 403，那种响应里
+   照样带着续期头，放在成功分支里读就等于少续一次。`api.js` 的 `adoptRefreshedToken`
+   和 SDK 的 `HandleRefreshedToken` 都是这么排的。
+2. **换到就要立刻用起来。** 后续请求还带旧的那张，服务端会一次次重新签发；一张 70MB
+   谱面的 tus 上传有七十来片，等于七十次 RSA 签名全白签。`tus.js` 的 `createSession`
+   把 headers 做成 getter 就是为了这个。
+3. **写回去之前确认会话没变过。** 请求在途期间用户可能已经登出，或者并发的另一发先换过
+   一张。不判就会把作废的会话复活、或者拿旧基准盖掉新的。
+
+**accountToken 不参与续期**，服务端那条分支在续期代码之前就 `return` 了。让它自动续命
+等于把「偷到 profileToken 也看不到你名下有几个身份」这条性质删掉，过期就老实走
+`/api/auth/elevate`。所以 `account: true` 的请求不去读这个头。
 
 规则是**「不可逆的事都要提权」**——删谱面、生成转让码要 accountToken，但撤销
 转让码不要（可逆方向）。加新调用前先确认端点在哪个 Controller。

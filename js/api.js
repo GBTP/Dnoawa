@@ -32,6 +32,9 @@ const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD']);
 const MAX_WRITE_LOCK_RETRIES = 2;
 const MAX_WRITE_LOCK_BACKOFF_MS = 3000;
 
+/** profileToken 的滑动续期头，与后端 TokenRenewal.HeaderName 对齐。 */
+const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token';
+
 /**
  * accountToken **只放内存，绝不落盘**。
  *
@@ -123,6 +126,37 @@ export function logout() {
   location.href = LOGIN_PAGE;
 }
 
+/**
+ * 吸收服务端换发的新 profileToken（响应头 `X-Refreshed-Token`）。
+ *
+ * 滑动续期：token 剩余寿命少于阈值时，服务端在下一个响应里带回一张新的，一直在用就
+ * 一直在线，闲置够久才需要重登。**只对 profileToken 发生**——accountToken 只有 1 小时
+ * 寿命且由密码闸门守着，让它自动续命等于把「偷到 profileToken 也看不到你名下有几个
+ * 身份」这条性质删掉，所以服务端从不续它，这里也不去读。
+ *
+ * 跨域下这个头必须由后端显式 expose 才读得到，两条线路都已确认它在
+ * `Access-Control-Expose-Headers` 里（漏了的话续期会完全静默失效，一个月后才有人发现）。
+ *
+ * 换到新的要**立刻用起来**，不然后面每个请求都还带着旧的那张，服务端会一次次重新签发。
+ *
+ * @param {Response} response
+ * @param {string|null} sentToken 这一发实际带出去的 profileToken
+ * @returns {string|null} 换到的新 token；没换则 null
+ */
+export function adoptRefreshedToken(response, sentToken) {
+  if (!sentToken) return null;
+
+  const refreshed = response.headers.get(REFRESHED_TOKEN_HEADER);
+  if (!refreshed || refreshed === sentToken) return null;
+
+  // 请求在途期间会话可能已经变了：用户登出了，或者并发的另一发请求先换过一张。
+  // 这时候写回去等于把作废的会话复活、或者拿旧的盖掉新的。两张都有效，保住现有的即可。
+  if (getToken() !== sentToken) return null;
+
+  localStorage.setItem(TOKEN_KEY, refreshed);
+  return refreshed;
+}
+
 // ---------- 请求 ----------
 
 /**
@@ -153,6 +187,10 @@ export async function request(path, options = {}) {
 
   const token = auth ? (account ? accountToken : getToken()) : null;
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  // 记下这一发带出去的是哪张 profileToken，用来判断服务端有没有在响应里换新的。
+  // accountToken 不参与：服务端刻意不续它。
+  let sentProfileToken = auth && !account ? token : null;
 
   // body 提前序列化成字符串，重试时才能原样重发（流式 body 是一次性的）。
   const init = {
@@ -192,6 +230,16 @@ export async function request(path, options = {}) {
       }
       retried = true;
       continue;
+    }
+
+    // 放在所有状态码分支【之前】：token 本身有效、只是该端点不归它管时会拿到 403，
+    // 那种响应里照样带着续期头，漏掉就等于少续了一次。对齐 SDK 的 HandleRefreshedToken。
+    if (sentProfileToken) {
+      const refreshed = adoptRefreshedToken(response, sentProfileToken);
+      if (refreshed) {
+        sentProfileToken = refreshed;
+        init.headers.Authorization = `Bearer ${refreshed}`;
+      }
     }
 
     if (response.status === 204) {
