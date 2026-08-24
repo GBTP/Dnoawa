@@ -66,7 +66,11 @@ export function scanFiles(files) {
     const stem = stemOf(lower);
     const relative = file.webkitRelativePath || file.name;
 
-    if (isArcadeProjectPath(relative) || lower === 'project.arcade') {
+    // 兜底只在拿不到目录结构时生效（relative 就是裸文件名）。目录导入时有完整
+    // 路径，就必须像客户端一样要求 Arcade/ 子目录——根目录散落的同名文件
+    // 客户端是不读的，网页拿去预填会造成两边行为不一致。
+    const hasDirectoryInfo = relative !== file.name;
+    if (isArcadeProjectPath(relative) || (!hasDirectoryInfo && lower === 'project.arcade')) {
       scan.arcadeProject ??= file;
       if (scan.arcadeProject !== file) scan.leftover.push(file);
       continue;
