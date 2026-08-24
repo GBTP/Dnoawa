@@ -63,6 +63,7 @@ export function listMyLevels({ page = 1, pageSize = PAGE_SIZE } = {}) {
  *
  * durationSeconds 单独提交会 400——它只能跟 musicFileId 一起，
  * 而且写库的永远是服务端实测值。网页端不碰这个字段。
+ * removeVideo 是显式清空 BGA 的开关，缺省不修改；不要用 videoFileId: null 代替。
  */
 export function updateLevel(id, patch) {
   return put(`/api/levels/${id}`, patch);

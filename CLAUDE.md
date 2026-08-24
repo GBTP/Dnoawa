@@ -72,7 +72,8 @@ accountToken 不落盘是**隐私**要求不是权限要求：账号级端点的
 
 配套的两件事：封面加 `referrerpolicy="no-referrer"` 绕开 Referer 防盗链；
 `<audio>` **不要**加 `crossorigin`——媒体播放跨域本不需要 CORS，加了反而强制走
-检查，CDN 没返 ACAO 就直接没声音。
+额外的跨域检查。当前 CDN 实测会返 `access-control-allow-origin: *`，但音频的 MIME 是
+`audio/x-vorbis+ogg`，Safari 仍可能按 Vorbis 能力检测误判，所以不要主动开启 CORS 媒体模式。
 
 **Safari 放不了 Ogg Vorbis**，而后端强制这个格式。`js/audio.js` 的做法是先挂原生
 `<audio>`、出错再换 WASM 解码器——不只看 `canPlayType`，因为 CDN 返回的是

@@ -41,8 +41,12 @@
       el, clear, showBox, hideBox, commandBlock, formatDate, displayName, avatarImage,
       copyableValue,
     } from './js/ui.js';
-    import { RESOURCE_KINDS, uploadResource } from './js/replace.js';
-    import { decodeAudio, defaultPreviewRange } from './js/media.js';
+    import { uploadFile } from './js/tus.js';
+    import { prepareChartPackage, uploadResource } from './js/replace.js';
+    import { fetchBinary, decodeAudio, defaultPreviewRange, probeVideo } from './js/media.js';
+    import { openChartPackage } from './js/chart-package.js';
+    import { analyzeSfx } from './js/aff.js';
+    import { createResourceRow, createFilePicker, formatResourceSize } from './js/resource-editor.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -225,12 +229,21 @@
             patch.tags = nextTags;
           }
 
+          if (resources.hasChanges()) {
+            const resourcePatch = await resources.preparePatch(text => {
+              status.textContent = text;
+              status.className = 'callout';
+            });
+            Object.assign(patch, resourcePatch);
+          }
+
           if (!Object.keys(patch).length) {
             showBox(status, '没有需要保存的改动', '');
             return;
           }
 
           await updateLevel(level.id, patch);
+          resources.commit();
           showBox(status, isAdmin ? '已保存。' : '已保存，谱面重新进入审核队列。', 'success');
           setTimeout(() => location.href = `level.html?id=${level.id}`, 1200);
         } catch (error) {
@@ -241,127 +254,292 @@
         }
       });
 
+      const resources = resourceSection(level, isAdmin);
       content.append(form);
-      content.append(resourceSection(level, isAdmin));
+      content.append(resources);
       content.append(collaboratorSection(level));
       content.append(transferSection(level));
       content.append(dangerZone(level));
     }
 
     /**
-     * 逐个资源替换。后端的五个 *FileId 都是独立可选的，所以这里一次只换一样，
-     * 不用像客户端那样凑齐整个目录。
+     * 资源清单。独立资源和包内资源都先放进 draft，顶部的「保存修改」一次提交。
      */
     function resourceSection(level, isAdmin) {
       const box = el('div', { class: 'resource-section' },
-        el('h2', { class: 'section-title' }, '替换资源'));
-
-      if (!isAdmin) {
-        box.append(el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
-          '换任何一项都会让谱面重新进入审核，并让已下载的玩家重新下载。'));
-      }
-
+        el('h2', { class: 'section-title' }, '资源清单'),
+        el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
+          isAdmin ? '可以逐项替换或删除，最后和上面的信息一起点击「保存修改」。' :
+            '可以逐项替换或删除；所有改动会在一次保存时提交，保存后谱面会重新进入审核。'));
       const rows = el('div', { class: 'resource-list' });
+      const summary = el('div', { class: 'upload-summary' });
+      const status = el('div', { class: 'callout', hidden: true });
+      const packageNote = el('div', { class: 'resource-status' }, '正在读取谱面里的资源…');
+      let packageModel = null;
+      let packageError = null;
+      let packageDirty = false;
+      let packageAnalysis = null;
+      let packageLoading = true;
+      let rangeEditor = null;
+      let rangeDirty = false;
+      let musicSource = null;
+      let musicSequence = 0;
+      let videoProbe = null;
+      let analysisSequence = 0;
+      let objectUrls = [];
+      const draft = { cover: null, music: null, video: null, removeVideo: false };
+      let previewRange = { start: level.previewStart || 0, end: level.previewEnd || 0 };
 
-      for (const [kind, spec] of Object.entries(RESOURCE_KINDS)) {
-        const picker = el('input', { type: 'file', accept: spec.accept, hidden: true });
-        const choose = el('button', { class: 'button small', type: 'button' }, '选择文件');
-        const chosen = el('span', { class: 'resource-file' }, '未选择');
-        const apply = el('button', { class: 'button small', type: 'button', disabled: true }, '替换');
-        const status = el('div', { class: 'resource-status' });
-        // 只有预览用得上：选完文件后在这里画波形让用户框选区间
-        const rangeSlot = kind === 'preview' ? el('div', { class: 'resource-range' }) : null;
-        const hintSlot = el('div', { class: 'resource-extra' });
-        let rangeEditor = null;
+      box.append(summary, rows, status);
+      renderRows();
+      loadPackage();
 
-        const reset = () => {
-          picker.value = '';
-          chosen.textContent = '未选择';
-          apply.disabled = true;
-          rangeEditor?.destroy();
-          rangeEditor = null;
-          if (rangeSlot) clear(rangeSlot);
-        };
-
-        choose.addEventListener('click', () => picker.click());
-        picker.addEventListener('change', async () => {
-          const file = picker.files[0];
-          chosen.textContent = file ? `${file.name}（${formatSize(file.size)}）` : '未选择';
-          apply.disabled = !file;
-          status.textContent = '';
-          status.className = 'resource-status';
-          clear(hintSlot);
-
-          rangeEditor?.destroy();
-          rangeEditor = null;
-          if (!rangeSlot) return;
-          clear(rangeSlot);
-          if (!file) return;
-
-          // 解码是上传前本来就要做的（切片用），这里提前做掉，画波形和试听不额外花成本
-          status.textContent = '正在解析波形…';
-          apply.disabled = true;
-          try {
-            const buffer = await decodeAudio(file);
-            // 解码期间用户可能又换了文件，这份结果已经过期
-            if (picker.files[0] !== file) return;
-
-            const initial = defaultPreviewRange(buffer.duration);
-            rangeEditor = createPreviewRangeEditor({ buffer, ...initial });
-            rangeSlot.append(rangeEditor.element);
-            status.textContent = '';
-          } catch (error) {
-            // 解析失败不挡住替换：整段上传这条路仍然可用（后端会拒超 60 秒的）
-            status.textContent = `无法解析波形（${error.message}），将整段上传`;
-          } finally {
-            if (picker.files[0] === file) apply.disabled = false;
-          }
-        });
-
-        apply.addEventListener('click', async () => {
-          const file = picker.files[0];
-          if (!file) return;
-          if (spec.warn && !window.confirm(`${spec.warn}\n\n确定要替换${spec.label}吗？`)) return;
-
-          apply.disabled = true;
-          choose.disabled = true;
-          try {
-            const patch = await uploadResource(kind, file, text => {
-              status.textContent = text;
-              status.className = 'resource-status';
-            }, { previewRange: rangeEditor?.getRange() });
-            await updateLevel(level.id, patch);
-            status.textContent = isAdmin ? '已替换。' : '已替换，谱面重新进入审核。';
-            status.className = 'resource-status is-done';
-            reset();
-          } catch (error) {
-            status.textContent = describeError(error);
-            status.className = 'resource-status is-error';
-            // 视频不合规时 prepareResource 会把 ffmpeg 命令挂在错误上，
-            // 直接给出来比让用户自己查参数强
-            if (error.ffmpegCommand) {
-              clear(hintSlot);
-              hintSlot.append(commandBlock(error.ffmpegCommand,
-                '装了 ffmpeg 的话，用这条命令转成合规的 MP4 再上传：'));
-            }
-            apply.disabled = false;
-          } finally {
-            choose.disabled = false;
-          }
-        });
-
-        rows.append(el('div', { class: 'resource-row' },
-          el('div', { class: 'resource-head' },
-            el('strong', {}, spec.label),
-            el('span', { class: 'resource-hint' }, spec.hint)),
-          el('div', { class: 'resource-actions' }, choose, chosen, apply, picker),
-          rangeSlot,
-          status,
-          hintSlot,
-        ));
+      async function loadPackage() {
+        try {
+          const bytes = await fetchBinary(level.chartPackageUrl, {
+            onProgress: ratio => { packageNote.textContent = `正在读取谱面资源 ${Math.round(ratio * 100)}%`; },
+          });
+          packageModel = await openChartPackage(bytes);
+          packageAnalysis = analyzeSfx(new TextDecoder().decode(packageModel.chart.data), packageModel.sfx);
+          packageLoading = false;
+          renderRows();
+        } catch (error) {
+          packageLoading = false;
+          packageError = error;
+          packageNote.textContent = `无法读取谱面资源：${error.message}`;
+          packageNote.className = 'resource-status is-error';
+          renderRows();
+        }
       }
 
-      box.append(rows);
+      function localUrl(blob) {
+        const url = URL.createObjectURL(blob);
+        objectUrls.push(url);
+        return url;
+      }
+
+      async function refreshPackageAnalysis() {
+        if (!packageModel?.chart) return;
+        const sequence = ++analysisSequence;
+        try {
+          const data = packageModel.chart.data || new Uint8Array(await packageModel.chart.file.arrayBuffer());
+          const next = analyzeSfx(new TextDecoder().decode(data), packageModel.sfx);
+          if (sequence !== analysisSequence) return;
+          packageAnalysis = next;
+          renderRows();
+        } catch {
+          packageAnalysis = null;
+        }
+      }
+
+      function mediaNode(url, kind) {
+        if (!url) return null;
+        if (kind === 'cover') return el('img', { class: 'resource-thumb', src: url, alt: '当前封面', referrerpolicy: 'no-referrer' });
+        if (kind === 'music' || kind === 'preview') return el('audio', { controls: true, preload: 'metadata', src: url });
+        if (kind === 'video') return el('video', { controls: true, preload: 'metadata', src: url });
+        return null;
+      }
+
+      function fileOrCurrent(file, currentName) {
+        return file || { name: currentName };
+      }
+
+      function updateResourceSummary() {
+        clear(summary);
+        const changes = [];
+        if (draft.cover) changes.push('替换封面');
+        if (draft.music) changes.push('替换音乐');
+        if (rangeDirty) changes.push('调整预览区间');
+        if (draft.video) changes.push('替换背景视频');
+        if (draft.removeVideo) changes.push('删除背景视频');
+        if (packageDirty) changes.push('修改谱面内资源');
+        summary.textContent = changes.length ? `待保存：${changes.join('、')}` : '尚未选择资源改动';
+      }
+
+      function renderRows() {
+        objectUrls.forEach(url => URL.revokeObjectURL(url));
+        objectUrls = [];
+        clear(rows);
+        updateResourceSummary();
+
+        appendIndependent('cover', '封面', '当前封面。', 'image/*', level.coverUrl, draft.cover, true);
+        appendIndependent('music', '音乐', '当前音乐；换音乐后会自动重算预览片段。', 'audio/*,.ogg,.mp3,.wav,.flac', level.musicUrl, draft.music, true);
+        appendPreview();
+        appendVideo();
+
+        if (packageLoading) {
+          rows.append(el('div', { class: 'resource-row' }, packageNote));
+        } else if (packageError) {
+          rows.append(el('div', { class: 'resource-row' }, packageNote));
+        } else {
+          appendPackageRows();
+        }
+      }
+
+      function appendIndependent(kind, label, hint, accept, currentUrl, selected, required) {
+        const row = createResourceRow({
+          label, hint, required, accept,
+          value: fileOrCurrent(selected, `当前${label}`),
+          preview: selected ? mediaNode(localUrl(selected), kind) : mediaNode(currentUrl, kind),
+          onChoose: async files => {
+            const file = files[0];
+            if (!file) return;
+            draft[kind] = file;
+            // 解码失败不能静默——用户选了文件却看不到任何反馈会以为页面坏了
+            try {
+              if (kind === 'music') await prepareMusicRange(file, true);
+            } catch (error) {
+              showBox(status, `无法解析新音乐：${error.message}，保存时将按原区间截取`, 'error');
+            }
+            renderRows();
+          },
+        });
+        rows.append(row.element);
+      }
+
+      function appendPreview() {
+        const row = el('div', { class: 'resource-row' });
+        const slot = el('div', { class: 'resource-range' });
+        const adjust = el('button', { class: 'button small', type: 'button' }, '调整区间');
+        adjust.addEventListener('click', async () => {
+          try {
+            const source = draft.music || await ensureMusicSource(text => { status.hidden = false; status.textContent = text; });
+            await prepareMusicRange(source, false);
+          } catch (error) { showBox(status, describeError(error), 'error'); }
+        });
+        row.append(...[
+          el('div', { class: 'resource-head' }, el('strong', {}, '预览音频'), el('span', { class: 'resource-hint' }, '从当前音乐自动截取，最长 60 秒；更换音乐后会自动重算，也可以只移动起止位置。')),
+          mediaNode(level.previewUrl, 'preview'),
+          el('div', { class: 'resource-actions' }, adjust),
+          slot,
+        ].filter(Boolean));
+        if (rangeEditor) slot.append(rangeEditor.element);
+        rows.append(row);
+      }
+
+      function appendVideo() {
+        const current = draft.video || (level.videoUrl && !draft.removeVideo ? { name: '当前背景视频' } : null);
+        const row = createResourceRow({
+          label: '背景视频', hint: '可选的 BGA；移除后会恢复为无视频。', accept: 'video/mp4,.mp4', value: current,
+          preview: draft.video ? mediaNode(localUrl(draft.video), 'video') : mediaNode(draft.removeVideo ? null : level.videoUrl, 'video'),
+          onChoose: async files => {
+            if (!files[0]) return;
+            draft.video = files[0];
+            draft.removeVideo = false;
+            videoProbe = await probeVideo(files[0]);
+            renderRows();
+          },
+          onRemove: () => { draft.video = null; draft.removeVideo = Boolean(level.videoUrl); renderRows(); },
+          extra: videoProbe && !videoProbe.ok ? () => el('div', { class: 'callout warning' }, videoProbe.reason, commandBlock(buildFfmpegCommand(draft.video?.name || 'input.mp4'), '用这条命令转码后再选择合规文件：')) : null,
+        });
+        rows.append(row.element);
+      }
+
+      function appendPackageRows() {
+        const model = packageModel;
+        const chartRow = createResourceRow({
+          label: '谱面', hint: '当前 ZIP 里的 chart.aff。替换后会保留其他未识别条目。', accept: '.aff,.zip',
+          value: model.chart, onChoose: async files => {
+            const file = files[0];
+            if (!file) return;
+            if (file.name.toLowerCase().endsWith('.zip')) {
+              try { packageModel = await openChartPackage(new Uint8Array(await file.arrayBuffer())); }
+              catch (error) { showBox(status, error.message, 'error'); return; }
+            } else packageModel.chart = { file, name: 'chart.aff' };
+            packageDirty = true;
+            packageAnalysis = null;
+            await refreshPackageAnalysis();
+            renderRows();
+          },
+        });
+        rows.append(chartRow.element);
+
+        const background = createResourceRow({
+          label: '背景图', hint: '包内 bg.jpg，可选。', accept: 'image/*', value: model.background,
+          preview: model.background?.data ? el('img', { class: 'resource-thumb', src: localUrl(new Blob([model.background.data], { type: 'image/jpeg' })), alt: '当前背景图', referrerpolicy: 'no-referrer' }) : null,
+          onChoose: files => { if (files[0]) { model.background = { file: files[0], name: 'bg.jpg' }; packageDirty = true; renderRows(); } },
+          onRemove: () => { model.background = null; packageDirty = true; renderRows(); },
+        });
+        rows.append(background.element);
+
+        const effect = createResourceRow({
+          label: '演出效果', hint: '包内 effect.bin，可选。', accept: '.bin', value: model.effect,
+          onChoose: files => { if (files[0]) { model.effect = { file: files[0], name: 'effect.bin' }; packageDirty = true; renderRows(); } },
+          onRemove: () => { model.effect = null; packageDirty = true; renderRows(); },
+        });
+        rows.append(effect.element);
+
+        const sfx = el('div', { class: 'resource-row' });
+        const add = createFilePicker({ accept: '.wav,audio/wav', multiple: true, label: '添加音效', onFiles: files => {
+          for (const file of files) model.sfx.push({ file, name: file.name });
+          packageDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows();
+        }});
+        const list = el('div', { class: 'resource-sfx-list' });
+        for (const [index, sound] of model.sfx.entries()) {
+          const item = el('div', { class: 'resource-sfx-item' }, el('span', {}, `${sound.name}（${formatResourceSize(sound.data?.length || sound.file?.size || 0)}）`));
+          const remove = el('button', { class: 'button small ghost', type: 'button' }, '删除');
+          remove.addEventListener('click', () => { model.sfx.splice(index, 1); packageDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows(); });
+          item.append(remove); list.append(item);
+        }
+        sfx.append(el('div', { class: 'resource-head' }, el('strong', {}, `天键音效${model.sfx.length ? `（${model.sfx.length} 个）` : ''}`), el('span', { class: 'resource-hint' }, '按文件名与 AFF 的 fx 字段对应，可添加或删除。')), el('div', { class: 'resource-actions' }, add.button, add.input), list);
+        if (packageAnalysis?.missing.length) sfx.append(el('div', { class: 'callout warning' }, `AFF 引用了但包里没有：${packageAnalysis.missing.join('、')}`));
+        if (packageAnalysis?.unused.length) sfx.append(el('p', { class: 'hint' }, `当前未被 AFF 引用：${packageAnalysis.unused.join('、')}`));
+        rows.append(sfx);
+
+        if (model.others.length) {
+          rows.append(el('div', { class: 'resource-row' }, el('strong', {}, '其他包内文件'), el('p', { class: 'hint' }, model.others.map(item => item.name).join('、') + '（编辑时会原样保留）')));
+        }
+      }
+
+      async function prepareMusicRange(file, automatic) {
+        if (!file) return;
+        const sequence = ++musicSequence;
+        const bytesFile = file instanceof File ? file : file;
+        const buffer = await decodeAudio(bytesFile);
+        if (sequence !== musicSequence) return;
+        if (automatic || previewRange.end <= previewRange.start || previewRange.end > buffer.duration) {
+          previewRange = defaultPreviewRange(buffer.duration);
+          rangeDirty = true;
+        }
+        rangeEditor?.destroy();
+        rangeEditor = createPreviewRangeEditor({
+          buffer, ...previewRange,
+          onChange: range => { previewRange = range; rangeDirty = true; updateResourceSummary(); },
+        });
+        renderRows();
+      }
+
+      async function ensureMusicSource(report) {
+        if (draft.music) return draft.music;
+        if (musicSource) return musicSource;
+        report('读取原音乐');
+        const bytes = await fetchBinary(level.musicUrl, { onProgress: ratio => report(`读取原音乐 ${Math.round(ratio * 100)}%`) });
+        musicSource = new File([bytes], 'music.ogg', { type: 'audio/ogg' });
+        return musicSource;
+      }
+
+      box.hasChanges = () => Boolean(draft.cover || draft.music || draft.video || draft.removeVideo || packageDirty || rangeDirty);
+      box.preparePatch = async report => {
+        const patch = {};
+        if (packageDirty) {
+          const prepared = await prepareChartPackage(packageModel, report);
+          patch.chartFileId = await uploadFile(prepared.blob, { fileType: 'chart', name: 'chart', onProgress: ratio => report(`上传谱面 ${Math.round(ratio * 100)}%`) });
+        }
+        if (draft.cover) patch.coverFileId = await uploadResource('cover', draft.cover, report);
+        if (draft.music) patch.musicFileId = await uploadResource('music', draft.music, report);
+        if (draft.video && videoProbe && !videoProbe.ok) throw new Error(videoProbe.reason);
+        if (draft.video) patch.videoFileId = await uploadResource('video', draft.video, report);
+        if (draft.removeVideo && !draft.video) patch.removeVideo = true;
+
+        if (draft.music || rangeDirty) {
+          const source = await ensureMusicSource(report);
+          patch.previewFileId = await uploadResource('preview', source, report, { previewRange });
+          patch.previewStart = previewRange.start;
+          patch.previewEnd = previewRange.end;
+        }
+        return patch;
+      };
+      box.commit = () => {};
       return box;
     }
 

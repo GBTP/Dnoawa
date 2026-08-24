@@ -11,9 +11,7 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="index.html">
-        Anoawa <small>社区</small>
-      </a>
+      <a class="brand" href="index.html">Anoawa <small>社区</small></a>
       <nav class="top-actions">
         <a class="top-link" href="index.html">谱面库</a>
         <a class="top-link current" href="upload.html">上传</a>
@@ -28,19 +26,27 @@
   <main class="page" style="max-width:760px">
     <div class="page-head">
       <h1>上传谱面</h1>
-      <p>把谱面文件夹整个拖进来，各文件会按客户端的规则自动认领。</p>
+      <p>先导入一个文件夹、ZIP 或几份文件，之后可以在资源清单里逐项核对和补齐。</p>
     </div>
 
     <div class="card">
       <div class="dropzone" id="dropzone" tabindex="0" role="button">
-        <h3>拖入谱面文件夹</h3>
-        <p>需要 <code>0.aff</code>~<code>4.aff</code>、<code>base</code> 音频和 <code>base</code> 曲绘</p>
-        <span class="or">songlist、Arcade 工程文件、bg 图/视频、effect.bin、音效 wav 都会自动识别</span>
-        <input type="file" id="picker" multiple hidden>
+        <h3>导入谱面文件</h3>
+        <p>可以拖入文件夹，也可以用下面的按钮选择</p>
+        <span class="or">自动识别只是快捷方式，每一项之后都能单独替换</span>
+        <input type="file" id="folder-picker" webkitdirectory directory multiple hidden>
+        <input type="file" id="file-picker" multiple accept=".aff,.zip,.ogg,.mp3,.wav,.flac,.aac,.jpg,.jpeg,.png,.webp,.bmp,.gif,.mp4,.bin" hidden>
+      </div>
+      <div class="resource-import-actions">
+        <button class="button small" type="button" id="choose-folder">选择谱面文件夹</button>
+        <button class="button small" type="button" id="choose-files">选择文件补齐</button>
+        <span class="hint">支持直接选择 ZIP 谱面文件</span>
       </div>
 
-      <div class="claims" id="claims" hidden></div>
-      <div class="callout warning" id="claim-warning" hidden></div>
+      <div id="resource-editor" hidden></div>
+      <input type="hidden" id="previewStart">
+      <input type="hidden" id="previewEnd">
+      <div class="callout" id="import-note" hidden></div>
 
       <form id="form" hidden>
         <hr class="divider">
@@ -48,7 +54,7 @@
         <div class="field" id="diff-field" hidden>
           <label>上传哪个难度</label>
           <div class="difficulties" id="difficulties"></div>
-          <p class="hint">一个谱面文件夹可能有多个难度，社区里每个难度是独立的一张谱面。</p>
+          <p class="hint">一个文件夹可以有多个难度；每次上传一张。上传成功后可以直接继续下一张。</p>
         </div>
 
         <div class="callout success" id="songlist-note" hidden></div>
@@ -59,97 +65,29 @@
             <input class="input" id="levelName" required maxlength="80">
             <div class="title-options" id="title-options" hidden></div>
           </div>
-          <div class="field">
-            <label for="composerName">曲师</label>
-            <input class="input" id="composerName" required maxlength="80">
-          </div>
-          <div class="field">
-            <label for="charterName">谱师</label>
-            <input class="input" id="charterName" required maxlength="80">
-            <p class="hint" id="charter-hint"></p>
-          </div>
-          <div class="field">
-            <label for="artistName">曲绘</label>
-            <input class="input" id="artistName" required maxlength="80">
-          </div>
-          <div class="field">
-            <label for="displayDifficulty">显示难度</label>
-            <input class="input" id="displayDifficulty" required maxlength="16">
-          </div>
-          <div class="field">
-            <label for="chartConstant">难度定数</label>
-            <input class="input" id="chartConstant" type="number" step="0.1" min="0" max="20" placeholder="留空则按显示难度推算">
-            <p class="hint">谱师自己给的定数。留空的话服务端按显示难度打个底（<code>9</code> 记 9.3，<code>9+</code> 记 9.7），之后随时能改。</p>
-          </div>
-          <div class="field">
-            <label for="baseBpm">基准 BPM</label>
-            <input class="input" id="baseBpm" type="number" step="0.01" min="1" required>
-            <p class="hint">参与玩法的数值，只能是一个数。</p>
-          </div>
-          <div class="field">
-            <label for="bpm">显示 BPM</label>
-            <input class="input" id="bpm" maxlength="32" placeholder="留空则与基准相同">
-            <p class="hint">纯展示，变速曲可以写成 <code>174-186</code> 这样的区间。</p>
-          </div>
-          <div class="field">
-            <label for="previewStart">试听起点（秒）</label>
-            <input class="input" id="previewStart" type="number" step="0.1" min="0">
-          </div>
-          <div class="field">
-            <label for="previewEnd">试听终点（秒）</label>
-            <input class="input" id="previewEnd" type="number" step="0.1" min="0">
-          </div>
-        </div>
-        <div id="range-slot"></div>
-        <p class="hint" style="margin:8px 0 18px">在波形上拖动框选，或直接改上面的秒数。最长 60 秒，与游戏内一致。</p>
-
-        <div class="field">
-          <label for="themeColor">主题色</label>
-          <div class="input-row">
-            <input class="input" id="themeColor" value="#4B65B0" maxlength="7" pattern="#[0-9A-Fa-f]{6}">
-            <input class="input swatch" id="themeSwatch" type="color" value="#4B65B0" aria-label="选择主题色">
-          </div>
+          <div class="field"><label for="composerName">曲师</label><input class="input" id="composerName" required maxlength="80"></div>
+          <div class="field"><label for="charterName">谱师</label><input class="input" id="charterName" required maxlength="80"><p class="hint" id="charter-hint"></p></div>
+          <div class="field"><label for="artistName">曲绘</label><input class="input" id="artistName" required maxlength="80"></div>
+          <div class="field"><label for="displayDifficulty">显示难度</label><input class="input" id="displayDifficulty" required maxlength="16"></div>
+          <div class="field"><label for="chartConstant">难度定数</label><input class="input" id="chartConstant" type="number" step="0.1" min="0" max="20" placeholder="留空则按显示难度推算"><p class="hint">留空的话服务端按显示难度打个底，之后随时能改。</p></div>
+          <div class="field"><label for="baseBpm">基准 BPM</label><input class="input" id="baseBpm" type="number" step="0.01" min="1" required><p class="hint">参与玩法的数值，只能是一个数。</p></div>
+          <div class="field"><label for="bpm">显示 BPM</label><input class="input" id="bpm" maxlength="32" placeholder="留空则与基准相同"><p class="hint">纯展示，变速曲可以写成 <code>174-186</code>。</p></div>
         </div>
 
-        <div class="field">
-          <label for="recommendedTheme">推荐资源包主题</label>
-          <select class="select" id="recommendedTheme">
-            <option value="">不指定</option>
-            <option value="Light">明亮</option>
-            <option value="Dark">暗色</option>
-          </select>
-          <p class="hint">建议玩这张谱时用哪种色调的资源包，纯建议，不强制。</p>
-        </div>
-
-        <div class="field">
-          <label for="tags">标签</label>
-          <input class="input" id="tags" placeholder="用逗号分隔，例如 原创, 高难">
-        </div>
-
-        <div class="field">
-          <label for="introduction">简介</label>
-          <textarea class="input" id="introduction" rows="3" maxlength="500"></textarea>
-        </div>
-
-        <div class="field" id="video-field" hidden>
-          <label class="check">
-            <input type="checkbox" id="includeVideo">
-            <span>一并上传背景视频<small class="hint" id="video-note" style="display:block"></small></span>
-          </label>
-          <div id="video-hint"></div>
-        </div>
+        <div class="field"><label for="themeColor">主题色</label><div class="input-row"><input class="input" id="themeColor" value="#4B65B0" maxlength="7" pattern="#[0-9A-Fa-f]{6}"><input class="input swatch" id="themeSwatch" type="color" value="#4B65B0" aria-label="选择主题色"></div></div>
+        <div class="field"><label for="recommendedTheme">推荐资源包主题</label><select class="select" id="recommendedTheme"><option value="">不指定</option><option value="Light">明亮</option><option value="Dark">暗色</option></select><p class="hint">建议玩这张谱时用哪种色调的资源包，纯建议。</p></div>
+        <div class="field"><label for="tags">标签</label><input class="input" id="tags" placeholder="用逗号分隔，例如 原创, 高难"></div>
+        <div class="field"><label for="introduction">简介</label><textarea class="input" id="introduction" rows="3" maxlength="500"></textarea></div>
 
         <div class="callout warning" id="attribution-note">
           <strong>上传者就是这张谱面的所有者。</strong>
-          <p>用「<span id="current-identity">当前身份</span>」上传，这张谱面就归它所有——
-             编辑、替换资源、删除都由它说了算。上面填的「谱师」只是署名，不影响归属。</p>
-          <p>所以帮别人代传时，请<a href="user.html">单独建一个身份</a>用作者的名字来传，
-             日后把整个身份转让给作者本人。用自己的常用身份代传的话，作品的控制权会一直在你手上，
-             而且转让时没法只交出那几张。</p>
+          <p>用「<span id="current-identity">当前身份</span>」上传，这张谱面就归它所有——编辑、替换资源、删除都由它说了算。</p>
+          <p>上面填的「谱师」只是署名，不影响归属。帮别人代传时，请<a href="user.html">单独建一个身份</a>用作者的名字来传。</p>
         </div>
 
-        <button class="button primary block" type="submit" id="submit" style="margin-top:18px">开始上传</button>
-
+        <div class="upload-summary" id="upload-summary"></div>
+        <button class="button primary block" type="submit" id="submit" style="margin-top:18px">确认并开始上传</button>
+        <button class="button block" type="button" id="continue" hidden style="margin-top:10px">继续上传下一个难度</button>
         <div class="progress" id="progress" hidden><span></span></div>
         <p class="stage" id="stage" hidden></p>
         <div class="callout error" id="error" hidden></div>
@@ -157,479 +95,7 @@
       </form>
     </div>
   </main>
-
   <script type="module" src="js/nav.js"></script>
-  <script type="module">
-    import { requireLogin, describeError, logout, getProfile } from './js/api.js';
-    import {
-      scanFiles, availableDifficulties, describeMissing, buildPrefill, submitLevel, probeVideo,
-    } from './js/upload.js';
-    import { DIFF_NAMES, DIFF_COLORS, LOCALE_LABELS } from './js/songlist.js';
-    import { decodeAudio } from './js/media.js';
-    import { createPreviewRangeEditor } from './js/preview-range.js';
-    import { el, clear, commandBlock } from './js/ui.js';
-    import { buildFfmpegCommand } from './js/replace.js';
-
-    if (!requireLogin()) throw new Error('redirecting');
-    document.getElementById('logout').addEventListener('click', logout);
-
-    const dropzone = document.getElementById('dropzone');
-    const picker = document.getElementById('picker');
-    const claimsBox = document.getElementById('claims');
-    const claimWarning = document.getElementById('claim-warning');
-    const form = document.getElementById('form');
-
-    let scan = null;
-    let folderName = '';
-    let videoProbe = null;
-    let difficultyIndex = 0;
-    let decodedBuffer = null;
-    let rangeEditor = null;
-
-    // 谱师名和当前身份不一致时，就地提醒一句——这是最容易意识到
-    // "我传的不是自己作品"的时刻
-    const identityName = getProfile().nickname || '当前身份';
-    document.getElementById('current-identity').textContent = identityName;
-
-    const charterInput = document.getElementById('charterName');
-    const charterHint = document.getElementById('charter-hint');
-    const paintCharterHint = () => {
-      const charter = charterInput.value.trim();
-      if (charter && charter !== identityName) {
-        charterHint.textContent =
-          `谱师填的是「${charter}」，但这张谱面会归当前身份「${identityName}」所有。` +
-          `代传请先单独建一个身份，见下方说明。`;
-        charterHint.classList.add('is-warn');
-      } else {
-        charterHint.textContent = '';
-        charterHint.classList.remove('is-warn');
-      }
-    };
-    charterInput.addEventListener('input', paintCharterHint);
-
-    // ---------- 选文件 ----------
-
-    dropzone.addEventListener('click', () => picker.click());
-    dropzone.addEventListener('keydown', event => {
-      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); picker.click(); }
-    });
-    picker.addEventListener('change', () => {
-      const files = [...picker.files];
-      accept(files, files[0]?.webkitRelativePath?.split('/')[0] || '');
-    });
-
-    for (const type of ['dragenter', 'dragover']) {
-      dropzone.addEventListener(type, event => { event.preventDefault(); dropzone.classList.add('over'); });
-    }
-    for (const type of ['dragleave', 'drop']) {
-      dropzone.addEventListener(type, () => dropzone.classList.remove('over'));
-    }
-    dropzone.addEventListener('drop', async event => {
-      event.preventDefault();
-      const { files, name } = await filesFromDrop(event.dataTransfer);
-      accept(files, name);
-    });
-
-    /** 拖进来的可能是文件夹，递归展开成扁平文件列表，顺便记住顶层目录名。 */
-    async function filesFromDrop(transfer) {
-      const entries = [...transfer.items].map(item => item.webkitGetAsEntry?.()).filter(Boolean);
-      if (!entries.length) return { files: [...transfer.files], name: '' };
-
-      const files = [];
-      const walk = async entry => {
-        if (entry.isFile) {
-          const file = await new Promise((res, rej) => entry.file(res, rej));
-          // 拖进来的 File 上 webkitRelativePath 是空的（那是 <input webkitdirectory>
-          // 才有的），目录信息只在 entry.fullPath 上。Arcade/Project.arcade 这类
-          // 按路径识别的文件需要它，所以挂一个只读属性带出去。
-          try {
-            Object.defineProperty(file, 'webkitRelativePath', {
-              value: entry.fullPath.replace(/^\//, ''),
-              configurable: true,
-            });
-          } catch { /* 某些浏览器上 File 的属性不可重定义，退化成按文件名认 */ }
-          files.push(file);
-        } else if (entry.isDirectory) {
-          const reader = entry.createReader();
-          // readEntries 一次最多返回 100 条，要一直读到空为止
-          for (;;) {
-            const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-            if (!batch.length) break;
-            for (const child of batch) await walk(child);
-          }
-        }
-      };
-      for (const entry of entries) await walk(entry);
-
-      const dir = entries.find(e => e.isDirectory);
-      return { files, name: dir ? dir.name : '' };
-    }
-
-    async function accept(files, name) {
-      if (!files.length) return;
-      scan = scanFiles(files);
-      folderName = name;
-      videoProbe = scan.video ? await probeVideo(scan.video) : null;
-      await render();
-    }
-
-    // ---------- 认领结果 ----------
-
-    async function render() {
-      clear(claimsBox);
-      claimsBox.hidden = false;
-
-      const found = availableDifficulties(scan);
-
-      const rows = [
-        ['谱面', found.length ? found.map(d => d.file.name).join('、') : null, found.length ? `${found.length} 个难度` : ''],
-        ['音频', scan.music?.name, ''],
-        ['曲绘', scan.cover?.name, ''],
-        ['songlist', scan.songlist?.name, scan.songlist ? '将用于预填' : '未提供'],
-        ['Arcade 工程', scan.arcadeProject?.name, scan.arcadeProject ? '将用于预填' : '未提供'],
-        ['背景图', scan.background?.name, scan.background ? '打进谱面包' : '未提供'],
-        ['演出效果', scan.effect?.name, scan.effect ? '打进谱面包' : '未提供'],
-        ['音效', scan.wavs.length ? scan.wavs.map(w => w.name).join('、') : null, scan.wavs.length ? `${scan.wavs.length} 个` : '未提供'],
-        ['背景视频', scan.video?.name, videoNote()],
-      ];
-
-      const required = new Set(['谱面', '音频', '曲绘']);
-      for (const [role, value, note] of rows) {
-        const missing = !value && required.has(role);
-        claimsBox.append(el('div', {
-          class: `claim${missing ? ' missing' : ''}${role === '背景视频' && videoProbe && !videoProbe.ok ? ' rejected' : ''}`,
-        },
-          el('span', { class: 'role' }, role),
-          el('span', { class: 'file' }, value || (missing ? '缺失' : '未提供')),
-          note ? el('span', { class: 'note' }, note) : null,
-        ));
-      }
-
-      if (scan.error) {
-        claimWarning.textContent = scan.error;
-        claimWarning.hidden = false;
-        form.hidden = true;
-        return;
-      }
-
-      const missing = describeMissing(scan);
-      if (missing.length) {
-        claimWarning.textContent = `还缺少：${missing.join('、')}`;
-        claimWarning.hidden = false;
-        form.hidden = true;
-        return;
-      }
-
-      claimWarning.hidden = true;
-      form.hidden = false;
-      renderDifficulties(found);
-      setupVideo();
-      await applyPrefill();
-      mountRangeEditor();
-    }
-
-    /**
-     * 波形区间选择器。
-     *
-     * 解码是上传流程本来就要做的（生成预览片段用），这里提前做掉，画波形和试听
-     * 都不额外花成本，解好的 buffer 也会传给 submitLevel，免得再解一遍。
-     */
-    async function mountRangeEditor() {
-      const slot = document.getElementById('range-slot');
-      rangeEditor?.destroy();
-      rangeEditor = null;
-      decodedBuffer = null;
-
-      clear(slot);
-      slot.append(el('div', { class: 'range-loading' }, '正在解析音频波形…'));
-
-      const music = scan.music;
-      try {
-        decodedBuffer = await decodeAudio(music);
-      } catch (error) {
-        clear(slot);
-        slot.append(el('div', { class: 'callout error' },
-          `无法解析音频：${error.message}。仍可手动填写试听区间。`));
-        return;
-      }
-      // 解码期间用户可能又拖了别的文件夹进来，这份结果已经过期
-      if (scan.music !== music) return;
-
-      const startInput = document.getElementById('previewStart');
-      const endInput = document.getElementById('previewEnd');
-
-      rangeEditor = createPreviewRangeEditor({
-        buffer: decodedBuffer,
-        start: Number(startInput.value) || 0,
-        end: Number(endInput.value) || 0,
-        onChange: ({ start, end }) => {
-          startInput.value = start.toFixed(1);
-          endInput.value = end.toFixed(1);
-          startInput.dataset.touched = '1';
-          endInput.dataset.touched = '1';
-        },
-      });
-
-      clear(slot);
-      slot.append(rangeEditor.element);
-
-      // 数字框改动同步回波形（波形自己会做上下限夹取）
-      for (const input of [startInput, endInput]) {
-        input.addEventListener('change', () => {
-          rangeEditor?.setRange({
-            start: Number(startInput.value) || 0,
-            end: Number(endInput.value) || 0,
-          });
-          const current = rangeEditor?.getRange();
-          if (current) {
-            startInput.value = current.start.toFixed(1);
-            endInput.value = current.end.toFixed(1);
-          }
-        });
-      }
-
-      // 初始区间回填进数字框（songlist 没给区间时这里就是默认的 30% 处 30 秒）
-      const initial = rangeEditor.getRange();
-      startInput.value = initial.start.toFixed(1);
-      endInput.value = initial.end.toFixed(1);
-    }
-
-    function videoNote() {
-      if (!scan.video) return '未提供';
-      if (!videoProbe) return '';
-      return videoProbe.ok
-        ? `${videoProbe.width}×${videoProbe.height}，可上传`
-        : videoProbe.reason;
-    }
-
-    function renderDifficulties(found) {
-      const field = document.getElementById('diff-field');
-      const box = document.getElementById('difficulties');
-      clear(box);
-
-      difficultyIndex = found[0].index;
-      // 只有一个难度就没必要让用户选
-      field.hidden = found.length < 2;
-      if (found.length < 2) return;
-
-      for (const item of found) {
-        const input = el('input', {
-          type: 'radio', name: 'difficulty', value: String(item.index),
-        });
-        input.checked = item.index === difficultyIndex;
-        input.addEventListener('change', async () => {
-          difficultyIndex = item.index;
-          await applyPrefill();
-        });
-        // 选中态用该难度档自己的颜色，和谱面库里的徽章是同一套
-        const pick = el('label', { class: 'diff-pick' }, input, DIFF_NAMES[item.index],
-          el('small', {}, item.file.name));
-        pick.style.setProperty('--tier', DIFF_COLORS[item.index]);
-        box.append(pick);
-      }
-    }
-
-    function setupVideo() {
-      const field = document.getElementById('video-field');
-      const checkbox = document.getElementById('includeVideo');
-      const note = document.getElementById('video-note');
-      clear(document.getElementById('video-hint'));
-
-      field.hidden = !scan.video;
-      if (!scan.video) return;
-
-      if (videoProbe?.ok) {
-        checkbox.disabled = false;
-        checkbox.checked = true;
-        note.textContent = `${scan.video.name} · ${videoProbe.width}×${videoProbe.height} · ${(scan.video.size / 1024 / 1024).toFixed(1)}MB`;
-      } else {
-        // 浏览器里转不了码（客户端用的 VideoNormalizer 在网页上没有对等实现），
-        // 与其上传后被后端 400，不如提前说清楚并给出转码命令
-        checkbox.disabled = true;
-        checkbox.checked = false;
-        note.textContent = `${videoProbe?.reason || '无法识别'}。网页端不能转码。`;
-
-        const slot = document.getElementById('video-hint');
-        clear(slot);
-        slot.append(commandBlock(buildFfmpegCommand(scan.video.name),
-          '装了 ffmpeg 的话，用这条命令转成合规的 MP4，再把 bg.mp4 放回谱面目录重新拖入：'));
-      }
-    }
-
-    /** songlist 的预填只覆盖用户还没改过的字段。 */
-    async function applyPrefill() {
-      const prefill = await buildPrefill(scan, difficultyIndex, folderName);
-      const note = document.getElementById('songlist-note');
-
-      const fields = [
-        ['levelName', prefill.levelName],
-        ['composerName', prefill.composerName],
-        ['charterName', prefill.charterName],
-        ['artistName', prefill.artistName],
-        ['displayDifficulty', prefill.displayDifficulty],
-        ['baseBpm', prefill.baseBpm ? String(prefill.baseBpm) : ''],
-        ['bpm', prefill.bpm],
-        ['previewStart', prefill.previewStart > 0 ? String(prefill.previewStart) : ''],
-        ['previewEnd', prefill.previewEnd > 0 ? String(prefill.previewEnd) : ''],
-      ];
-      for (const [id, value] of fields) {
-        const input = document.getElementById(id);
-        // 难度切换时这几个是跟着难度走的，要覆盖；其余保留用户已输入的内容
-        const followsDifficulty = ['displayDifficulty', 'charterName', 'artistName'].includes(id);
-        if (value && (followsDifficulty || !input.dataset.touched)) input.value = value;
-      }
-
-      setThemeColor(prefill.themeColor);
-      renderTitleOptions(prefill.titleOptions);
-      paintCharterHint();
-
-      // 两者都在时以 songlist 为准（信息更全），与客户端 ChartFolderImporter 一致
-      const sources = [
-        prefill.fromSonglist ? 'songlist' : null,
-        prefill.fromArcade ? 'Arcade 工程文件' : null,
-      ].filter(Boolean);
-
-      if (sources.length) {
-        note.textContent = `已从 ${sources.join(' 和 ')} 读取曲目信息，请核对后再提交。`;
-        note.hidden = false;
-      } else {
-        note.hidden = true;
-      }
-    }
-
-    /**
-     * 多语言曲名选择。songlist 里有几种就列几种，点一下填进输入框；
-     * 输入框本身始终可以自由编辑，选项只是省去手打。
-     */
-    function renderTitleOptions(titles) {
-      const box = document.getElementById('title-options');
-      clear(box);
-
-      const entries = Object.entries(titles || {});
-      // 只有一种语言就没什么可挑的，输入框已经填好了
-      box.hidden = entries.length < 2;
-      if (entries.length < 2) return;
-
-      for (const [locale, value] of entries) {
-        const chip = el('button', {
-          type: 'button',
-          class: 'title-option',
-          dataset: { value },
-          title: value,
-        },
-          el('span', { class: 'locale' }, LOCALE_LABELS[locale] || locale),
-          el('span', { class: 'value' }, value),
-        );
-        chip.addEventListener('click', () => {
-          const input = document.getElementById('levelName');
-          input.value = value;
-          // 手动选过就算用户定了，切难度时不要再被覆盖
-          input.dataset.touched = '1';
-          paintTitleOptions();
-        });
-        box.append(chip);
-      }
-
-      paintTitleOptions();
-    }
-
-    /** 高亮与输入框当前内容一致的那个选项。 */
-    function paintTitleOptions() {
-      const box = document.getElementById('title-options');
-      const current = document.getElementById('levelName').value;
-      for (const chip of box.children) {
-        chip.classList.toggle('active', chip.dataset.value === current);
-      }
-    }
-
-    // 用户手动改过的字段，切难度时不要被覆盖
-    for (const id of ['levelName', 'composerName', 'baseBpm', 'bpm', 'previewStart', 'previewEnd']) {
-      document.getElementById(id).addEventListener('input', event => {
-        event.target.dataset.touched = '1';
-      });
-    }
-
-    // 只注册一次：renderTitleOptions 每次切难度都会重跑，在里面挂 listener 会累积
-    document.getElementById('levelName').addEventListener('input', paintTitleOptions);
-
-    // ---------- 主题色 ----------
-
-    const themeText = document.getElementById('themeColor');
-    const themeSwatch = document.getElementById('themeSwatch');
-    function setThemeColor(hex) {
-      if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
-      themeText.value = hex.toUpperCase();
-      themeSwatch.value = hex;
-    }
-    themeText.addEventListener('input', () => {
-      if (/^#[0-9a-f]{6}$/i.test(themeText.value)) themeSwatch.value = themeText.value;
-    });
-    themeSwatch.addEventListener('input', () => { themeText.value = themeSwatch.value.toUpperCase(); });
-
-    // ---------- 提交 ----------
-
-    const submitButton = document.getElementById('submit');
-    const progress = document.getElementById('progress');
-    const progressBar = progress.firstElementChild;
-    const stage = document.getElementById('stage');
-    const errorBox = document.getElementById('error');
-    const doneBox = document.getElementById('done');
-
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      if (!form.reportValidity()) return;
-
-      errorBox.hidden = true;
-      doneBox.hidden = true;
-      progress.hidden = false;
-      stage.hidden = false;
-      submitButton.disabled = true;
-
-      const meta = {
-        levelName: value('levelName'),
-        composerName: value('composerName'),
-        charterName: value('charterName'),
-        artistName: value('artistName'),
-        displayDifficulty: value('displayDifficulty'),
-        baseBpm: Number(value('baseBpm')) || 0,
-        bpm: value('bpm'),
-        themeColor: /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0',
-        introduction: value('introduction'),
-        recommendedTheme: value('recommendedTheme'),
-        chartConstant: value('chartConstant'),
-        includeVideo: document.getElementById('includeVideo').checked,
-        tags: value('tags').split(/[,，]/).map(t => t.trim()).filter(Boolean),
-        previewStart: Number(value('previewStart')),
-        previewEnd: Number(value('previewEnd')),
-      };
-
-      try {
-        rangeEditor?.destroy();
-        const id = await submitLevel(scan, difficultyIndex, meta, (text, ratio) => {
-          stage.textContent = text;
-          if (typeof ratio === 'number') progressBar.style.width = `${Math.round(ratio * 100)}%`;
-        }, { decoded: decodedBuffer });
-
-        progressBar.style.width = '100%';
-        stage.hidden = true;
-        clear(doneBox);
-        doneBox.append(
-          el('strong', {}, '上传成功，等待审核。'),
-          el('p', {}, '审核通过后就会出现在社区谱面库里。'),
-          el('p', {}, el('a', { href: `level.html?id=${id}` }, '查看这张谱面 →')),
-        );
-        doneBox.hidden = false;
-        submitButton.hidden = true;
-      } catch (error) {
-        errorBox.textContent = describeError(error);
-        errorBox.hidden = false;
-        stage.hidden = true;
-        progress.hidden = true;
-        submitButton.disabled = false;
-      }
-    });
-
-    function value(id) { return document.getElementById(id).value.trim(); }
-  </script>
+  <script type="module" src="js/upload-page.js"></script>
 </body>
 </html>

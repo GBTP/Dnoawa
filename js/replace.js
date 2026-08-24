@@ -1,8 +1,8 @@
 /**
- * 逐个替换已有谱面的资源。
+ * 处理谱面资源的转码与上传。资源编辑器负责收集变更，这里负责把变更变成后端 patch。
  *
- * 后端 UpdateLevelAsync 的五个 *FileId 都是独立可选的，所以网页可以只换一样。
- * 客户端那边只能整包替换（重扫目录、元数据保持原样），这里反而更灵活。
+ * 后端 UpdateLevelAsync 的五个 *FileId 都是独立可选的；包内资源则先重打包成一个 chart 文件。
+ * 上传页和编辑页都调用这里，保证两条路径的转码结果一致。
  *
  * 三条要记住的后端行为：
  * - 换任意资源会让 ResourceVersion++，客户端据此判断要不要重新下载
@@ -11,6 +11,7 @@
  */
 
 import { uploadFile } from './tus.js';
+import { buildChartPackage, openChartPackage } from './chart-package.js';
 import {
   PRESET, readBytes, sniff, decodeAudio, resample, sliceAudio,
   encodeOggVorbis, processImage, buildZip, probeVideo,
@@ -38,11 +39,11 @@ export const RESOURCE_KINDS = {
     warn: '换音乐会让所有人的历史成绩对不上新谱面，除非谱面本身没变。',
   },
   chart: {
-    label: '谱面包',
+    label: '谱面',
     accept: '.aff,.zip',
     fileType: 'chart',
     field: 'chartFileId',
-    hint: '可以直接给 .aff，会自动打成谱面包；给 .zip 则原样上传。',
+    hint: '可以选择 .aff 或 ZIP；ZIP 里的背景、演出效果和天键音效会列出来单独编辑。',
     warn: '换谱面后旧成绩就不再对应当前谱面了。',
   },
   preview: {
@@ -204,4 +205,81 @@ export function buildFfmpegCommand(inputName = 'input.mp4') {
     '-an',
     output,
   ].join(' ');
+}
+
+/**
+ * 把资源编辑器里的本地文件处理成 chart package 模型。
+ * 槽位可以是已有 data，也可以是待处理的 File；这样上传和在线编辑复用同一套规则。
+ *
+ * @param {{chart?: object|null, background?: object|null, effect?: object|null,
+ *   sfx?: object[], others?: object[]}} model
+ * @param {(stage: string) => void} report
+ */
+export async function prepareChartPackage(model, report = () => {}) {
+  let next = {
+    chart: model?.chart ? { ...model.chart } : null,
+    background: model?.background ? { ...model.background } : null,
+    effect: model?.effect ? { ...model.effect } : null,
+    sfx: (model?.sfx || []).map(item => ({ ...item })),
+    others: (model?.others || []).map(item => ({ ...item })),
+  };
+
+  if (next.chart?.file) {
+    report('读取谱面');
+    const bytes = await readBytes(next.chart.file);
+    if (sniff(bytes) === 'zip') {
+      // 选择 ZIP 时，它本身就是完整初始模型；槽位里后续的显式改动覆盖它。
+      const fromZip = await openChartPackage(bytes);
+      next = {
+        ...fromZip,
+        chart: fromZip.chart,
+        background: next.background?.file ? next.background : fromZip.background,
+        effect: next.effect?.file ? next.effect : fromZip.effect,
+        sfx: next.sfx.length ? next.sfx : fromZip.sfx,
+        others: fromZip.others,
+      };
+    } else {
+      next.chart = { name: 'chart.aff', data: bytes };
+    }
+  }
+
+  if (next.background?.file) {
+    report('处理背景图');
+    const file = next.background.file;
+    const bytes = await readBytes(file);
+    const data = imageNeedsNoWork(bytes, PRESET.background)
+      ? bytes
+      : await readBytes(await processImage(file, PRESET.background));
+    next.background = { name: 'bg.jpg', data };
+  }
+
+  if (next.effect?.file) {
+    report('读取演出效果');
+    next.effect = { name: 'effect.bin', data: await readBytes(next.effect.file) };
+  }
+
+  const sounds = [];
+  for (const sound of next.sfx) {
+    if (!sound?.file) {
+      if (sound?.data) sounds.push(sound);
+      continue;
+    }
+    report(`读取音效 ${sound.file.name}`);
+    sounds.push({ name: sound.name || sound.file.name, data: await readBytes(sound.file) });
+  }
+  next.sfx = sounds;
+
+  return { model: next, blob: await buildChartPackage(next) };
+}
+
+/**
+ * 生成上传前可读的资源变更摘要。
+ */
+export function describePackageModel(model) {
+  const parts = [];
+  if (model?.chart) parts.push('谱面');
+  if (model?.background) parts.push('背景图');
+  if (model?.effect) parts.push('演出效果');
+  if (model?.sfx?.length) parts.push(`${model.sfx.length} 个天键音效`);
+  return parts.join('、') || '无包内资源';
 }

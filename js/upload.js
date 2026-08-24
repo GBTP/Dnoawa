@@ -33,71 +33,79 @@ const stemOf = name => name.replace(/\.[^.]*$/, '').toLowerCase();
 /**
  * 扫描拖进来的一堆文件，认领各个角色。
  *
- * @returns {{charts: Array<?File>, music: ?File, cover: ?File, songlist: ?File,
- *   effect: ?File, background: ?File, video: ?File, wavs: File[], leftover: File[], error: ?string}}
+ * @returns {{charts: Array<?File>, chartCandidates: File[][], music: ?File, cover: ?File,
+ *   songlist: ?File, effect: ?File, background: ?File, video: ?File, wavs: File[],
+ *   leftover: File[], conflicts: Array, candidates: object, error: ?string}}
  */
 export function scanFiles(files) {
   const scan = {
     charts: new Array(DIFFICULTY_COUNT).fill(null),
+    chartCandidates: Array.from({ length: DIFFICULTY_COUNT }, () => []),
     music: null, cover: null, songlist: null, effect: null,
     background: null, video: null, arcadeProject: null,
-    wavs: [], leftover: [], error: null,
+    wavs: [], leftover: [], conflicts: [], error: null,
+    candidates: {
+      music: [], cover: [], songlist: [], effect: [], background: [], video: [],
+    },
   };
 
-  // 先挑出 base 音频，后面判断 wav 时要拿它排除自己
+  const addCandidate = (kind, file) => {
+    scan.candidates[kind].push(file);
+    if (!scan[kind]) scan[kind] = file;
+    else if (scan[kind] !== file) {
+      const existing = scan.candidates[kind];
+      if (!scan.conflicts.some(item => item.kind === kind)) {
+        scan.conflicts.push({ kind, files: existing });
+      }
+    }
+  };
+
   for (const file of files) {
     const lower = file.name.toLowerCase();
     const ext = extensionOf(lower);
     const stem = stemOf(lower);
-
-    // Arcade 工程文件在子目录 Arcade/ 下，不在谱面目录根部，所以按相对路径认。
-    // webkitRelativePath 只在目录选择/拖入时才有；单选文件时退化成按文件名认，
-    // 那种情况下拿不到目录结构，宁可认宽一点也别漏。
     const relative = file.webkitRelativePath || file.name;
+
     if (isArcadeProjectPath(relative) || lower === 'project.arcade') {
       scan.arcadeProject ??= file;
+      if (scan.arcadeProject !== file) scan.leftover.push(file);
       continue;
     }
 
-    // 谱面：0.aff ~ 4.aff，数字就是难度档
     if (ext === 'aff') {
       const index = Number.parseInt(stem, 10);
-      if (!Number.isInteger(index) || index < 0 || index >= DIFFICULTY_COUNT) continue;
-      if (scan.charts[index]) {
-        scan.error = `含有多个难度为 ${index} 的谱面`;
-        return scan;
+      if (!Number.isInteger(index) || index < 0 || index >= DIFFICULTY_COUNT) {
+        scan.leftover.push(file);
+        continue;
       }
-      scan.charts[index] = file;
+      scan.chartCandidates[index].push(file);
+      if (!scan.charts[index]) scan.charts[index] = file;
+      else scan.conflicts.push({ kind: `chart-${index}`, files: scan.chartCandidates[index] });
       continue;
     }
 
-    // 曲绘 / 音频：必须是 base.* 或 1080_base.* 前缀，和客户端一致
     if (lower.startsWith('base.') || lower.startsWith('1080_base.')) {
-      if (IMAGE_EXTS.includes(ext)) {
-        if (scan.cover) { scan.error = '目录内有多个 base 图片文件'; return scan; }
-        scan.cover = file;
-      } else if (AUDIO_EXTS.includes(ext)) {
-        if (scan.music) { scan.error = '目录内有多个 base 音频文件'; return scan; }
-        scan.music = file;
-      }
+      if (IMAGE_EXTS.includes(ext)) addCandidate('cover', file);
+      else if (AUDIO_EXTS.includes(ext)) addCandidate('music', file);
+      else scan.leftover.push(file);
       continue;
     }
 
-    if (isSonglistName(lower)) { scan.songlist ??= file; continue; }
-    if (lower === 'effect.bin') { scan.effect = file; continue; }
+    if (isSonglistName(lower)) { addCandidate('songlist', file); continue; }
+    if (lower === 'effect.bin') { addCandidate('effect', file); continue; }
 
-    // 背景图和背景视频同词干，靠扩展名区分
     if (BG_STEMS.includes(stem)) {
-      if (IMAGE_EXTS.includes(ext)) { scan.background ??= file; continue; }
-      if (VIDEO_EXTS.includes(ext)) { scan.video ??= file; continue; }
+      if (IMAGE_EXTS.includes(ext)) { addCandidate('background', file); continue; }
+      if (VIDEO_EXTS.includes(ext)) { addCandidate('video', file); continue; }
     }
 
-    // 其余 wav 是谱面音效，会一起打进谱面包（base.wav 已经在上面被认成音频了）
     if (ext === 'wav') { scan.wavs.push(file); continue; }
-
     scan.leftover.push(file);
   }
 
+  // 不重复添加同一冲突，便于 UI 直接列出每组候选。
+  scan.conflicts = scan.conflicts.filter((item, index, all) =>
+    all.findIndex(other => other.kind === item.kind) === index);
   return scan;
 }
 
@@ -194,7 +202,7 @@ export async function buildPrefill(scan, difficultyIndex, folderName) {
  * @param {AudioBuffer} [options.decoded] 页面上画波形时已经解好的音频，传进来免得再解一遍
  * @returns {Promise<number>} 新建谱面的 id
  */
-export async function submitLevel(scan, difficultyIndex, meta, report, { signal, decoded } = {}) {
+export async function submitLevel(scan, difficultyIndex, meta, report, { signal, decoded, chartBlob } = {}) {
   const chartFile = scan.charts[difficultyIndex];
   if (!chartFile) throw new Error('选中的难度没有对应的谱面文件');
 
@@ -239,29 +247,32 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
 
   // ---------- 3. 谱面包 ----------
   report('打包谱面');
-  const entries = [{ name: 'chart.aff', data: await readBytes(chartFile) }];
+  let finalChartBlob = chartBlob;
+  if (!finalChartBlob) {
+    const entries = [{ name: 'chart.aff', data: await readBytes(chartFile) }];
 
-  if (scan.background) {
-    // 和封面同样的规则：已经是合规尺寸的 JPEG 就不重编码
-    const bgBytes = await readBytes(scan.background);
-    const bgData = imageNeedsNoWork(bgBytes, PRESET.background)
-      ? bgBytes
-      : await readBytes(await processImage(scan.background, PRESET.background));
-    entries.push({ name: 'bg.jpg', data: bgData, store: true });
+    if (scan.background) {
+      // 和封面同样的规则：已经是合规尺寸的 JPEG 就不重编码
+      const bgBytes = await readBytes(scan.background);
+      const bgData = imageNeedsNoWork(bgBytes, PRESET.background)
+        ? bgBytes
+        : await readBytes(await processImage(scan.background, PRESET.background));
+      entries.push({ name: 'bg.jpg', data: bgData, store: true });
+    }
+    if (scan.effect) {
+      entries.push({ name: 'effect.bin', data: await readBytes(scan.effect), store: true });
+    }
+    for (const wav of scan.wavs) {
+      entries.push({ name: wav.name, data: await readBytes(wav), store: true });
+    }
+    finalChartBlob = await buildZip(entries);
   }
-  if (scan.effect) {
-    entries.push({ name: 'effect.bin', data: await readBytes(scan.effect), store: true });
-  }
-  for (const wav of scan.wavs) {
-    entries.push({ name: wav.name, data: await readBytes(wav), store: true });
-  }
-  const chartBlob = await buildZip(entries);
 
   // ---------- 4. 上传 ----------
   const uploads = [
     ['cover', coverBlob, 'cover'],
     ['music', musicBlob, 'music'],
-    ['chart', chartBlob, 'chart'],
+    ['chart', finalChartBlob, 'chart'],
     ['preview', previewBlob, 'preview'],
   ];
   // 视频只在通过预检时才带上——浏览器转不了码，不合规的话上传也是白传

@@ -1538,3 +1538,37 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
   .topbar.nav-collapsed .top-link.current { border-left-color: var(--text); }
   .topbar.nav-collapsed .top-badge { margin-left: 0; }
 }
+
+/* ==========================================================================
+   资源清单（上传页与编辑页共用）
+   ========================================================================== */
+
+.resource-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+.resource-import-actions .hint { margin-left: 2px; }
+.resource-editor[hidden] { display: none; }
+.resource-intro { margin: -6px 0 16px; }
+.resource-body { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; margin-bottom: 9px; }
+.resource-preview { margin: 4px 0 12px; max-width: 100%; }
+.resource-preview audio, .resource-preview video { display: block; width: min(100%, 420px); }
+.resource-thumb { display: block; width: 112px; height: 78px; object-fit: cover; border: 1px solid var(--line); }
+.resource-file.is-empty { color: var(--danger); }
+.resource-candidate-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 9px; }
+.resource-candidates { width: auto; max-width: 100%; min-width: 220px; padding: 5px 28px 5px 8px; font-size: 12px; }
+.resource-sfx-list { margin-top: 12px; border-top: 1px solid var(--line); }
+.resource-sfx-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.resource-sfx-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-summary { margin-top: 18px; padding: 11px 13px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.55; }
+.upload-summary.is-error { color: var(--danger); border-color: var(--danger); }
+.resource-range { margin-top: 12px; }
+.resource-range:empty { display: none; }
+.resource-import-actions[hidden], .resource-candidate-wrap[hidden] { display: none; }
+.unused-files { margin-top: 9px; color: var(--faint); font-size: 12.5px; }
+.unused-files summary { cursor: pointer; color: var(--muted); }
+.unused-files ul { margin: 8px 0 0 18px; padding: 0; }
+.diff-pick .resource-candidates { display: block; margin-top: 6px; }

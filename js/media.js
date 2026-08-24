@@ -470,3 +470,168 @@ export async function buildZip(entries) {
   return new Blob([...chunks, ...central, new Uint8Array(end.buffer)],
     { type: 'application/zip' });
 }
+
+// ---------- CDN 二进制读取 / ZIP 解包 ----------
+
+const BINARY_FETCH_TIMEOUT_MS = 60_000;
+
+/**
+ * 从 LeanCloud 返回的七牛 URL 下载二进制资源。
+ *
+ * 这条链路刻意不走 api.js：它不是 Bnoawa API，不适用线路切换、token 续期和写锁重试。
+ * CDN 的 CORS 已实测为通配符，浏览器可以直接读取。
+ *
+ * @param {string} url
+ * @param {{onProgress?: (ratio: number) => void, signal?: AbortSignal}} [options]
+ * @returns {Promise<Uint8Array>}
+ */
+export async function fetchBinary(url, { onProgress, signal } = {}) {
+  if (!url) throw new Error('没有可读取的资源地址');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BINARY_FETCH_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      referrerPolicy: 'no-referrer',
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`读取资源失败（HTTP ${response.status}）`);
+
+    const total = Number.parseInt(response.headers.get('Content-Length') || '', 10) || 0;
+    if (!response.body) {
+      const data = new Uint8Array(await response.arrayBuffer());
+      onProgress?.(1);
+      return data;
+    }
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      chunks.push(value);
+      received += value.length;
+      if (total > 0) onProgress?.(Math.min(1, received / total));
+    }
+
+    const data = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.length;
+    }
+    onProgress?.(1);
+    return data;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (error?.name === 'AbortError') throw new Error('读取资源超时，请检查网络后重试');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
+async function inflateRaw(bytes) {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('当前浏览器不支持 ZIP 解包，请升级浏览器');
+  }
+  const stream = new Blob([bytes]).stream()
+    .pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function findEndOfCentralDirectory(bytes) {
+  // EOCD 最短 22 字节，注释最多 65535 字节。
+  const start = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let i = bytes.length - 22; i >= start; i -= 1) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b &&
+        bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) return i;
+  }
+  return -1;
+}
+
+/**
+ * 读取 ZIP 中央目录，支持 store(0) 和 deflate(8)。
+ *
+ * 不从 local header 猜条目大小：写到不可 seek 流的 ZIP 会用 data descriptor，
+ * 那里的 crc/size 可能全是 0；central directory 才是规范中的索引。
+ *
+ * @param {Uint8Array} bytes
+ * @returns {Promise<Array<{name: string, data: Uint8Array, method: number}>>}
+ */
+export async function readZip(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const eocd = findEndOfCentralDirectory(bytes);
+  if (eocd < 0 || eocd + 22 > bytes.length) throw new Error('不是有效的 ZIP 文件');
+
+  const count = view.getUint16(eocd + 10, true);
+  const centralSize = view.getUint32(eocd + 12, true);
+  const centralOffset = view.getUint32(eocd + 16, true);
+  if (count === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
+    throw new Error('暂不支持 ZIP64 谱面文件');
+  }
+  if (centralOffset + centralSize > bytes.length) throw new Error('ZIP 中央目录越界');
+
+  const decoder = new TextDecoder('utf-8');
+  const entries = [];
+  let offset = centralOffset;
+  for (let i = 0; i < count; i += 1) {
+    if (offset + 46 > bytes.length || view.getUint32(offset, true) !== 0x02014b50) {
+      throw new Error('ZIP 中央目录损坏');
+    }
+
+    const flags = view.getUint16(offset + 8, true);
+    const method = view.getUint16(offset + 10, true);
+    const expectedCrc = view.getUint32(offset + 16, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const uncompressedSize = view.getUint32(offset + 24, true);
+    const nameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const localOffset = view.getUint32(offset + 42, true);
+    const nameStart = offset + 46;
+    const next = nameStart + nameLength + extraLength + commentLength;
+    if (next > bytes.length) throw new Error('ZIP 条目越界');
+
+    // 现代上传路径都用 UTF-8；bit 11 未置位时 ASCII 文件名仍然兼容。
+    // 不把目录暴露给 UI：目录条目没有数据，重打包时跳过即可。
+    const name = decoder.decode(bytes.subarray(nameStart, nameStart + nameLength));
+    offset = next;
+    if (name.endsWith('/')) continue;
+    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff || localOffset === 0xffffffff) {
+      throw new Error('暂不支持 ZIP64 条目');
+    }
+
+    if (localOffset + 30 > bytes.length || view.getUint32(localOffset, true) !== 0x04034b50) {
+      throw new Error(`ZIP 条目 ${name} 的本地头损坏`);
+    }
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (dataEnd > bytes.length) throw new Error(`ZIP 条目 ${name} 越界`);
+
+    const compressed = bytes.subarray(dataStart, dataEnd);
+    let data;
+    if (method === 0) data = compressed.slice();
+    else if (method === 8) data = await inflateRaw(compressed);
+    else throw new Error(`ZIP 条目 ${name} 使用不支持的压缩方式 ${method}`);
+
+    if (data.length !== uncompressedSize) {
+      throw new Error(`ZIP 条目 ${name} 解压大小不一致`);
+    }
+    if (crc32(data) !== expectedCrc) {
+      throw new Error(`ZIP 条目 ${name} 校验失败`);
+    }
+    // flags 目前只用于保留结构信息；bit 3 的 data descriptor 已由 central size 处理。
+    entries.push({ name, data, method, flags });
+  }
+  return entries;
+}
