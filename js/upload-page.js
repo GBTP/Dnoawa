@@ -12,7 +12,7 @@ import { prepareChartPackage, buildFfmpegCommand } from './replace.js';
 import { createPreviewRangeEditor } from './preview-range.js';
 import { el, clear, commandBlock } from './ui.js';
 import {
-  createResourceRow, createFilePicker, formatResourceSize, resourceFileName,
+  createResourceRow, createFilePicker, formatResourceSize,
   renderChangeSummary,
 } from './resource-editor.js';
 
@@ -35,7 +35,6 @@ let difficultyIndex = 0;
 let decodedBuffer = null;
 let rangeEditor = null;
 let audioSequence = 0;
-let rangeInputsBound = false;
 let imported = false;
 let packageOthers = [];
 let videoProbe = null;
@@ -123,7 +122,6 @@ function blankDraft() {
   draft.chart = draft.cover = draft.music = draft.background = draft.effect = draft.video = null;
   draft.sfx = [];
   packageOthers = [];
-  packageOthers.length = 0;
   sfxAnalysis = null;
   sfxAnalysisSource = null;
 }
@@ -172,9 +170,14 @@ async function importFiles(files, name, reset) {
   if (reset && imported && !window.confirm('重新导入会清除当前还未上传的资源选择，继续吗？')) return;
 
   // 单个 ZIP 直接展开，进入与文件夹完全相同的资源清单。
-  if (files.length === 1 && (files[0].name.toLowerCase().endsWith('.zip') || sniff(await bytesOf(files[0])) === 'zip')) {
+  let zipBytes = null;
+  if (files.length === 1) {
+    if (files[0].name.toLowerCase().endsWith('.zip')) zipBytes = await bytesOf(files[0]);
+    else { const b = await bytesOf(files[0]); if (sniff(b) === 'zip') zipBytes = b; }
+  }
+  if (zipBytes) {
     try {
-      const model = await openChartPackage(await bytesOf(files[0]));
+      const model = await openChartPackage(zipBytes);
       blankDraft();
       scan = scanFiles([]);
       draft.chart = model.chart;
@@ -325,6 +328,9 @@ function renderResources() {
     previewSlot,
   );
   resourceBox.append(preview);
+  // renderResources 会清空 resourceBox 重建，已经存在的 rangeEditor.element 要重新挂回新槽，
+  // 否则 chooseResource('music') 里 await mountRangeEditor 挂上的元素会被紧接着的 renderRows 抹掉
+  if (rangeEditor) previewSlot.append(rangeEditor.element);
 
   const sfx = el('div', { class: 'resource-row' });
   const sfxList = el('div', { class: 'resource-sfx-list' });
@@ -371,9 +377,12 @@ async function refreshSfxAnalysis() {
   sfxAnalysisSource = key;
   try {
     let chart = source;
-    if (source.file && sniff(await bytesOf(source.file)) === 'zip') {
-      const model = await openChartPackage(await bytesOf(source.file));
-      chart = model.chart;
+    if (source.file) {
+      const b = await bytesOf(source.file);
+      if (sniff(b) === 'zip') {
+        const model = await openChartPackage(b);
+        chart = model.chart;
+      }
     }
     const data = chart.data || await bytesOf(chart.file);
     sfxAnalysis = analyzeSfx(new TextDecoder().decode(data), draft.sfx);
@@ -385,17 +394,22 @@ async function refreshSfxAnalysis() {
 
 async function chooseResource(kind, file) {
   if (!file) return;
-  if (kind === 'chart' && (file.name.toLowerCase().endsWith('.zip') || sniff(await bytesOf(file)) === 'zip')) {
-    try {
-      const model = await openChartPackage(await bytesOf(file));
-      draft.chart = model.chart;
-      draft.background = model.background;
-      draft.effect = model.effect;
-      draft.sfx = model.sfx.slice();
-      packageOthers = model.others.slice();
-      renderResources();
-    } catch (error) { showImportError(`无法读取 ZIP：${error.message}`); }
-    return;
+  if (kind === 'chart') {
+    let zipBytes = null;
+    if (file.name.toLowerCase().endsWith('.zip')) zipBytes = await bytesOf(file);
+    else { const b = await bytesOf(file); if (sniff(b) === 'zip') zipBytes = b; }
+    if (zipBytes) {
+      try {
+        const model = await openChartPackage(zipBytes);
+        draft.chart = model.chart;
+        draft.background = model.background;
+        draft.effect = model.effect;
+        draft.sfx = model.sfx.slice();
+        packageOthers = model.others.slice();
+        renderResources();
+      } catch (error) { showImportError(`无法读取 ZIP：${error.message}`); }
+      return;
+    }
   }
   draft[kind] = ref(file);
   if (kind === 'chart') { sfxAnalysis = null; sfxAnalysisSource = null; }
@@ -434,24 +448,9 @@ async function mountRangeEditor() {
     if (status) status.textContent = '';
     const slot = resourceBox.querySelector('.resource-range');
     if (slot) { clear(slot); slot.append(rangeEditor.element); }
-    syncRangeInputs();
   } catch (error) {
     decodedBuffer = null;
     if (status) status.textContent = `无法解析波形：${error.message}，仍可手动填写试听区间`;
-  }
-}
-
-function syncRangeInputs() {
-  if (rangeInputsBound) return;
-  rangeInputsBound = true;
-  for (const id of ['previewStart', 'previewEnd']) {
-    $(id).addEventListener('change', () => {
-      if (!rangeEditor) return;
-      rangeEditor.setRange({ start: Number($('previewStart').value) || 0, end: Number($('previewEnd').value) || 0 });
-      const range = rangeEditor.getRange();
-      $('previewStart').value = range.start.toFixed(1);
-      $('previewEnd').value = range.end.toFixed(1);
-    });
   }
 }
 
@@ -594,6 +593,9 @@ $('form').addEventListener('submit', async event => {
   progress.hidden = false;
   stage.hidden = false;
   progressBar.style.width = '0%';
+  // 上传期间停掉试听与波形 rAF，旧版 upload.html 会在 submit 开头 destroy
+  rangeEditor?.destroy();
+  rangeEditor = null;
 
   try {
     syncScan();
@@ -616,6 +618,7 @@ $('form').addEventListener('submit', async event => {
     done.hidden = false;
     clear(done);
     done.append(el('strong', {}, '上传成功，等待审核。'), el('p', {}, '审核通过后就会出现在社区谱面库里。'), el('p', {}, el('a', { href: `level.html?id=${id}` }, '查看这张谱面 →')));
+    $('submit').hidden = true;
     const next = nextDifficulty();
     if (next !== null) {
       $('continue').hidden = false;
@@ -651,6 +654,7 @@ $('continue').addEventListener('click', async () => {
 });
 
 function nextDifficulty() {
-  return scan.charts.findIndex((file, index) => index > difficultyIndex && file);
+  const index = scan.charts.findIndex((file, index) => index > difficultyIndex && file);
+  return index >= 0 ? index : null;
 }
 function value(id) { return $(id).value.trim(); }

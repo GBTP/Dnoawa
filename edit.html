@@ -42,7 +42,7 @@
       copyableValue,
     } from './js/ui.js';
     import { uploadFile } from './js/tus.js';
-    import { prepareChartPackage, uploadResource } from './js/replace.js';
+    import { prepareChartPackage, uploadResource, buildFfmpegCommand } from './js/replace.js';
     import { fetchBinary, decodeAudio, defaultPreviewRange, probeVideo } from './js/media.js';
     import { openChartPackage } from './js/chart-package.js';
     import { analyzeSfx } from './js/aff.js';
@@ -429,7 +429,7 @@
             videoProbe = await probeVideo(files[0]);
             renderRows();
           },
-          onRemove: () => { draft.video = null; draft.removeVideo = Boolean(level.videoUrl); renderRows(); },
+          onRemove: () => { draft.video = null; draft.removeVideo = Boolean(level.videoUrl); videoProbe = null; renderRows(); },
           extra: videoProbe && !videoProbe.ok ? () => el('div', { class: 'callout warning' }, videoProbe.reason, commandBlock(buildFfmpegCommand(draft.video?.name || 'input.mp4'), '用这条命令转码后再选择合规文件：')) : null,
         });
         rows.append(row.element);
@@ -456,7 +456,7 @@
 
         const background = createResourceRow({
           label: '背景图', hint: '包内 bg.jpg，可选。', accept: 'image/*', value: model.background,
-          preview: model.background?.data ? el('img', { class: 'resource-thumb', src: localUrl(new Blob([model.background.data], { type: 'image/jpeg' })), alt: '当前背景图', referrerpolicy: 'no-referrer' }) : null,
+          preview: model.background ? el('img', { class: 'resource-thumb', src: localUrl(model.background.file || new Blob([model.background.data], { type: 'image/jpeg' })), alt: '当前背景图', referrerpolicy: 'no-referrer' }) : null,
           onChoose: files => { if (files[0]) { model.background = { file: files[0], name: 'bg.jpg' }; packageDirty = true; renderRows(); } },
           onRemove: () => { model.background = null; packageDirty = true; renderRows(); },
         });
@@ -494,8 +494,7 @@
       async function prepareMusicRange(file, automatic) {
         if (!file) return;
         const sequence = ++musicSequence;
-        const bytesFile = file instanceof File ? file : file;
-        const buffer = await decodeAudio(bytesFile);
+        const buffer = await decodeAudio(file);
         if (sequence !== musicSequence) return;
         if (automatic || previewRange.end <= previewRange.start || previewRange.end > buffer.duration) {
           previewRange = defaultPreviewRange(buffer.duration);
@@ -521,19 +520,21 @@
       box.hasChanges = () => Boolean(draft.cover || draft.music || draft.video || draft.removeVideo || packageDirty || rangeDirty);
       box.preparePatch = async report => {
         const patch = {};
+        // 不合规视频在上传之前就拦住：否则白传 chart/cover/music，重试还要再来一遍
+        if (draft.video && videoProbe && !videoProbe.ok) throw new Error(videoProbe.reason);
         if (packageDirty) {
           const prepared = await prepareChartPackage(packageModel, report);
           patch.chartFileId = await uploadFile(prepared.blob, { fileType: 'chart', name: 'chart', onProgress: ratio => report(`上传谱面 ${Math.round(ratio * 100)}%`) });
         }
-        if (draft.cover) patch.coverFileId = await uploadResource('cover', draft.cover, report);
-        if (draft.music) patch.musicFileId = await uploadResource('music', draft.music, report);
-        if (draft.video && videoProbe && !videoProbe.ok) throw new Error(videoProbe.reason);
-        if (draft.video) patch.videoFileId = await uploadResource('video', draft.video, report);
+        // uploadResource 返回的是可直接并入 UpdateLevelRequest 的片段（{coverFileId: ...} 等），用 Object.assign 合并
+        if (draft.cover) Object.assign(patch, await uploadResource('cover', draft.cover, report));
+        if (draft.music) Object.assign(patch, await uploadResource('music', draft.music, report));
+        if (draft.video) Object.assign(patch, await uploadResource('video', draft.video, report));
         if (draft.removeVideo && !draft.video) patch.removeVideo = true;
 
         if (draft.music || rangeDirty) {
           const source = await ensureMusicSource(report);
-          patch.previewFileId = await uploadResource('preview', source, report, { previewRange });
+          Object.assign(patch, await uploadResource('preview', source, report, { previewRange }));
           patch.previewStart = previewRange.start;
           patch.previewEnd = previewRange.end;
         }
@@ -541,12 +542,6 @@
       };
       box.commit = () => {};
       return box;
-    }
-
-    function formatSize(bytes) {
-      if (bytes < 1024) return `${bytes} B`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     }
 
     /**
