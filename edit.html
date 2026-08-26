@@ -261,7 +261,10 @@
       const resources = resourceSection(level, isAdmin);
       // 统一保存栏：信息和资源是同一次 updateLevel 提交，保存入口放在两块面板之后，
       // 不用再从资源面板滚回顶部找按钮。合作者/转让/删除是各自独立的提交，仍在后面分开。
-      const saveBar = el('div', { class: 'save-bar card' },
+      // 不用 .card：它是横跨两块的动作区，做成实色块和上下 panel 拉开，
+      // 说明文字点明它管的是「信息和资源」，省得被当成资源面板的延伸。
+      const saveBar = el('div', { class: 'save-bar' },
+        el('p', { class: 'save-bar-scope' }, '保存上面的谱面信息和资源改动'),
         el('div', { class: 'hero-actions' }, save),
         status);
       content.append(form);
