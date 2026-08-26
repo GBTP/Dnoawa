@@ -637,16 +637,15 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 /*
- * 编辑页信息和资源两块面板之后的统一保存栏。
- * 故意不做成 .card：它是横跨两块的动作区，不是平级的第三块内容。
- * 用更实的顶边线 + 更大的上下间距和面板拉开，背景仍用 bg-raised 保持层次，
- * 不引入新的强调色（设计上颜色只在 themeColor / 难度档出现）。
+ * 编辑页 form 底部的保存栏：摘要 + 全宽保存按钮 + 状态。
+ * 对齐上传页「信息和资源同框、提交按钮在底」的结构。摘要是「待保存」清单，
+ * 放在按钮上方让人在提交前看清这次会动哪些东西。
  */
-.save-bar { margin: 32px 0; padding: 18px 26px; border: 1px solid var(--line-strong); background: var(--bg-raised); }
-.save-bar-scope { margin: 0 0 14px; color: var(--faint); font-size: 13px; }
-.save-bar .hero-actions { justify-content: flex-end; margin-top: 0; }
-/* .callout 在 save-bar 里要贴住按钮，去掉它默认的顶部 margin */
+.save-bar { margin-top: 18px; }
+.save-bar .upload-summary { margin-top: 0; }
 .save-bar .callout { margin-top: 12px; }
+/* 资源清单标题紧贴 divider，44px 顶距太宽，收紧 */
+.divider + .section-title { margin-top: 26px; }
 .like-button.liked { color: var(--bg); background: var(--text); border-color: var(--text); }
 
 .preview-block { margin-top: 34px; }

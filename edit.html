@@ -187,12 +187,10 @@
         el('div', { class: 'field' }, el('label', {}, '简介'), intro),
       );
 
-      // 保存按钮和状态栏不在 form 内：资源清单是和字段同一次提交的另一块面板，
-      // 把保存入口放在它之后才顺。按钮用 requestSubmit 触发 form 的 submit，
-      // 照样走 reportValidity；按钮在 form 外，不会因为回车误触提交。
-      const save = el('button', { class: 'button primary', type: 'submit' }, '保存修改');
+      // 保存按钮放回 form 内：现在资源和信息同框（对齐上传页），保存栏在 form 底部，
+      // type="submit" 直接触发提交，不需要 requestSubmit。
+      const save = el('button', { class: 'button primary block', type: 'submit' }, '保存修改');
       const status = el('div', { class: 'callout', hidden: true });
-      save.addEventListener('click', () => form.requestSubmit());
 
       form.addEventListener('submit', async event => {
         event.preventDefault();
@@ -259,17 +257,22 @@
       });
 
       const resources = resourceSection(level, isAdmin);
-      // 统一保存栏：信息和资源是同一次 updateLevel 提交，保存入口放在两块面板之后，
-      // 不用再从资源面板滚回顶部找按钮。合作者/转让/删除是各自独立的提交，仍在后面分开。
-      // 不用 .card：它是横跨两块的动作区，做成实色块和上下 panel 拉开，
-      // 说明文字点明它管的是「信息和资源」，省得被当成资源面板的延伸。
+      // 对齐上传页：信息和资源塞进同一个 form（.card），中间用 divider 分隔，
+      // 保存栏（摘要 + 按钮 + 状态）在 form 底部。这样信息和资源是一体的，
+      // 保存入口在两块内容之后，不用再上滚。合作者/转让/删除是各自独立的提交，仍分开。
+      form.append(
+        el('hr', { class: 'divider' }),
+        el('h2', { class: 'section-title' }, '资源清单'),
+        el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
+          isAdmin ? '可以逐项替换或删除，最后和上面的信息一起点击「保存修改」。' :
+            '可以逐项替换或删除；所有改动会在一次保存时提交，保存后谱面会重新进入审核。'),
+        resources.element);
       const saveBar = el('div', { class: 'save-bar' },
-        el('p', { class: 'save-bar-scope' }, '保存上面的谱面信息和资源改动'),
-        el('div', { class: 'hero-actions' }, save),
+        resources.summary,
+        save,
         status);
+      form.append(saveBar);
       content.append(form);
-      content.append(resources);
-      content.append(saveBar);
       content.append(collaboratorSection(level));
       content.append(transferSection(level));
       content.append(dangerZone(level));
@@ -277,13 +280,12 @@
 
     /**
      * 资源清单。独立资源和包内资源都先放进 draft，顶部的「保存修改」一次提交。
+     *
+     * 返回 { element, summary, hasChanges, preparePatch, commit }：element 是资源行容器
+     * （不含标题外壳，由 renderForm 拼进信息 card 里，中间用 divider 分隔，对齐上传页
+     * 「信息和资源同框」的结构），summary 是「待保存」摘要，挪到保存栏和按钮一起。
      */
     function resourceSection(level, isAdmin) {
-      const box = el('div', { class: 'resource-section' },
-        el('h2', { class: 'section-title' }, '资源清单'),
-        el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
-          isAdmin ? '可以逐项替换或删除，最后和上面的信息一起点击「保存修改」。' :
-            '可以逐项替换或删除；所有改动会在一次保存时提交，保存后谱面会重新进入审核。'));
       const rows = el('div', { class: 'resource-list' });
       const summary = el('div', { class: 'upload-summary' });
       const status = el('div', { class: 'callout', hidden: true });
@@ -303,7 +305,8 @@
       const draft = { cover: null, music: null, video: null, removeVideo: false };
       let previewRange = { start: level.previewStart || 0, end: level.previewEnd || 0 };
 
-      box.append(summary, rows, status);
+      // status 留在资源区下方显示就地错误（如「无法解析新音乐」），不放进保存栏
+      const element = el('div', {}, rows, status);
       renderRows();
       loadPackage();
 
@@ -533,8 +536,8 @@
         return musicSource;
       }
 
-      box.hasChanges = () => Boolean(draft.cover || draft.music || draft.video || draft.removeVideo || packageDirty || rangeDirty);
-      box.preparePatch = async report => {
+      const hasChanges = () => Boolean(draft.cover || draft.music || draft.video || draft.removeVideo || packageDirty || rangeDirty);
+      const preparePatch = async report => {
         const patch = {};
         // 不合规视频在上传之前就拦住：否则白传 chart/cover/music，重试还要再来一遍
         if (draft.video && videoProbe && !videoProbe.ok) throw new Error(videoProbe.reason);
@@ -556,8 +559,8 @@
         }
         return patch;
       };
-      box.commit = () => {};
-      return box;
+      const commit = () => {};
+      return { element, summary, hasChanges, preparePatch, commit };
     }
 
     /**
