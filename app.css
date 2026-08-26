@@ -636,6 +636,8 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .tag { padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+/* 编辑页信息和资源两块面板之后的统一保存栏。按钮靠右，符合"完成动作"惯例 */
+.save-bar .hero-actions { justify-content: flex-end; margin-top: 0; }
 .like-button.liked { color: var(--bg); background: var(--text); border-color: var(--text); }
 
 .preview-block { margin-top: 34px; }

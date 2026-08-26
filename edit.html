@@ -187,9 +187,12 @@
         el('div', { class: 'field' }, el('label', {}, '简介'), intro),
       );
 
+      // 保存按钮和状态栏不在 form 内：资源清单是和字段同一次提交的另一块面板，
+      // 把保存入口放在它之后才顺。按钮用 requestSubmit 触发 form 的 submit，
+      // 照样走 reportValidity；按钮在 form 外，不会因为回车误触提交。
       const save = el('button', { class: 'button primary', type: 'submit' }, '保存修改');
       const status = el('div', { class: 'callout', hidden: true });
-      form.append(el('div', { class: 'hero-actions' }, save), status);
+      save.addEventListener('click', () => form.requestSubmit());
 
       form.addEventListener('submit', async event => {
         event.preventDefault();
@@ -256,8 +259,14 @@
       });
 
       const resources = resourceSection(level, isAdmin);
+      // 统一保存栏：信息和资源是同一次 updateLevel 提交，保存入口放在两块面板之后，
+      // 不用再从资源面板滚回顶部找按钮。合作者/转让/删除是各自独立的提交，仍在后面分开。
+      const saveBar = el('div', { class: 'save-bar card' },
+        el('div', { class: 'hero-actions' }, save),
+        status);
       content.append(form);
       content.append(resources);
+      content.append(saveBar);
       content.append(collaboratorSection(level));
       content.append(transferSection(level));
       content.append(dangerZone(level));
