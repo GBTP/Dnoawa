@@ -44,9 +44,10 @@
     import { uploadFile } from './js/tus.js';
     import { prepareChartPackage, uploadResource, buildFfmpegCommand } from './js/replace.js';
     import { fetchBinary, decodeAudio, defaultPreviewRange, probeVideo } from './js/media.js';
+    import { createPreviewPlayer } from './js/audio.js';
     import { openChartPackage } from './js/chart-package.js';
     import { analyzeSfx } from './js/aff.js';
-    import { createResourceRow, createFilePicker, formatResourceSize } from './js/resource-editor.js';
+    import { createResourceRow, createFilePicker, formatResourceSize, thumbImage } from './js/resource-editor.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
 
     if (!requireLogin()) throw new Error('redirecting');
@@ -334,8 +335,11 @@
 
       function mediaNode(url, kind) {
         if (!url) return null;
-        if (kind === 'cover') return el('img', { class: 'resource-thumb', src: url, alt: '当前封面', referrerpolicy: 'no-referrer' });
-        if (kind === 'music' || kind === 'preview') return el('audio', { controls: true, preload: 'metadata', src: url });
+        if (kind === 'cover') return thumbImage('cover', url, '当前封面');
+        // 不能用裸 <audio>：CDN 给这些文件返回的是非标准 MIME audio/x-vorbis+ogg，
+        // 严格 MIME 的浏览器会以为自己能播然后卡住；Safari 干脆不支持 Vorbis。
+        // 详情页的 createPreviewPlayer 先挂原生、出错再换 WASM 解码器，复用它
+        if (kind === 'music' || kind === 'preview') return createPreviewPlayer(url);
         if (kind === 'video') return el('video', { controls: true, preload: 'metadata', src: url });
         return null;
       }
@@ -456,7 +460,7 @@
 
         const background = createResourceRow({
           label: '背景图', hint: '包内 bg.jpg，可选。', accept: 'image/*', value: model.background,
-          preview: model.background ? el('img', { class: 'resource-thumb', src: localUrl(model.background.file || new Blob([model.background.data], { type: 'image/jpeg' })), alt: '当前背景图', referrerpolicy: 'no-referrer' }) : null,
+          preview: model.background ? thumbImage('background', localUrl(model.background.file || new Blob([model.background.data], { type: 'image/jpeg' })), '当前背景图') : null,
           onChoose: files => { if (files[0]) { model.background = { file: files[0], name: 'bg.jpg' }; packageDirty = true; renderRows(); } },
           onRemove: () => { model.background = null; packageDirty = true; renderRows(); },
         });

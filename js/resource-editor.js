@@ -21,7 +21,32 @@ export function resourceFileName(value) {
 
 export function resourceFileSize(value) {
   if (!value) return '';
-  return value.size ?? value.file?.size ?? value.data?.length ?? 0;
+  // 三处都取不到时返回 NaN（"未知"），而不是 0（会被 formatResourceSize 显示成 "0 B"）。
+  // 编辑页的「当前封面」这种占位值只有 name、没有字节来源，显示成 0 B 是错的。
+  const size = value.size ?? value.file?.size ?? value.data?.length;
+  return size ?? NaN;
+}
+
+/**
+ * 造封面/背景图的预览 <img>。上传页和编辑页都用它，免得 class 和兜底逻辑写两遍。
+ *
+ * - cover：正方形（封面源图就是正方形），object-fit:cover 不裁内容
+ * - background：4:3 示意框，object-fit:fill 故意把非 4:3 的图拉变形，
+ *   让人一眼看出比例对不上
+ *
+ * 两页都加 onerror 文字兜底：本地 blob 不会裂，CDN URL 失效时换占位，
+ * 不留一个坏掉的 img 图标。
+ * @param {'cover'|'background'} kind
+ * @param {string} url
+ * @param {string} alt
+ */
+export function thumbImage(kind, url, alt) {
+  const variant = kind === 'cover' ? 'resource-thumb--cover' : 'resource-thumb--bg';
+  const img = el('img', { class: `resource-thumb ${variant}`, src: url, alt, referrerpolicy: 'no-referrer' });
+  img.addEventListener('error', () => {
+    img.replaceWith(el('div', { class: `resource-thumb ${variant} resource-broken` }, '图片加载失败'));
+  }, { once: true });
+  return img;
 }
 
 export function createFilePicker({ accept = '', multiple = false, label = '选择文件', onFiles }) {

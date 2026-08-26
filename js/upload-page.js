@@ -13,7 +13,7 @@ import { createPreviewRangeEditor } from './preview-range.js';
 import { el, clear, commandBlock } from './ui.js';
 import {
   createResourceRow, createFilePicker, formatResourceSize,
-  renderChangeSummary,
+  renderChangeSummary, thumbImage,
 } from './resource-editor.js';
 
 if (!requireLogin()) throw new Error('redirecting');
@@ -284,7 +284,8 @@ function previewNode(value, kind) {
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   objectUrls.push(url);
-  if (kind === 'cover' || kind === 'background') return el('img', { class: 'resource-thumb', src: url, alt: kind === 'cover' ? '封面预览' : '背景图预览', referrerpolicy: 'no-referrer' });
+  if (kind === 'cover') return thumbImage('cover', url, '封面预览');
+  if (kind === 'background') return thumbImage('background', url, '背景图预览');
   if (kind === 'music') return el('audio', { controls: true, preload: 'metadata', src: url });
   if (kind === 'video') return el('video', { controls: true, preload: 'metadata', src: url });
   return null;
