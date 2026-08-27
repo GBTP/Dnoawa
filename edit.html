@@ -208,6 +208,12 @@
       const tagsChanged = () => !sameSet(tagPicker.getSelected(), level.tagIds ?? []);
       const keywordsChanged = () => !sameSet(keywordEditor.getKeywords(), level.keywords ?? []);
 
+      // 函数声明提升：createTagPicker 的初始 render 会同步挂上可点的 ×，
+      // 用户在下面的 const 执行到之前点掉一个 tag 就会触发 onChange——
+      // 那时 refreshSummary 还在 TDZ 里。用 function 声明让它在 renderForm 整个
+      // 作用域内可用，这是「声明在首次调用之前」这条坑的函数写法版本。
+      function refreshSummary() { resources.refreshSummary(); }
+
       // 哪些信息字段相对原值改了，返回中文标签列表。判断条件必须和下面 submit
       // handler 里的 put() 一致——摘要说的和实际提交的不能对不上。
       function infoChanges() {
@@ -299,9 +305,8 @@
 
       const resources = resourceSection(level, infoChanges);
       // 信息字段一改就刷新摘要：让「待保存」实时反映曲名/标签等改动，
-      // 不用等保存时才发现改了什么
-      const refreshSummary = () => resources.refreshSummary();
-      // tagPicker/keywordEditor 不在 fields 里，它们的改动通过各自 onChange 回调进来
+      // 不用等保存时才发现改了什么。refreshSummary 已在上面用 function 声明（提升），
+      // tagPicker/keywordEditor 的 onChange 走的也是它。
       for (const node of [...Object.values(fields), themeText, theme, intro]) {
         node.addEventListener('input', refreshSummary);
       }
