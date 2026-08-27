@@ -10,6 +10,7 @@ import { openChartPackage } from './chart-package.js';
 import { analyzeSfx } from './aff.js';
 import { prepareChartPackage, buildFfmpegCommand } from './replace.js';
 import { createPreviewRangeEditor } from './preview-range.js';
+import { createTagPicker, createKeywordEditor } from './tags.js';
 import { el, clear, commandBlock } from './ui.js';
 import {
   createResourceRow, createFilePicker, formatResourceSize,
@@ -28,6 +29,14 @@ const importNote = $('import-note');
 const form = $('form');
 const identityName = getProfile().nickname || '当前身份';
 $('current-identity').textContent = identityName;
+
+// 受控 tag 选择器 + 搜索关键词编辑器。两个都是自渲染组件，挂到 upload.html 的
+// 占位 div 上；提交时通过 getSelected()/getKeywords() 取值。关键词编辑器的 Enter
+// 键已被组件自己 preventDefault，不会误触表单提交。
+const tagPicker = createTagPicker([]);
+const keywordEditor = createKeywordEditor([]);
+$('tags-picker').append(tagPicker.element);
+$('keywords-editor').append(keywordEditor.element);
 
 let scan = scanFiles([]);
 let folderName = '';
@@ -607,7 +616,8 @@ $('form').addEventListener('submit', async event => {
       baseBpm: Number(value('baseBpm')) || 0, bpm: value('bpm'),
       themeColor: /^#[0-9a-f]{6}$/i.test($('themeColor').value) ? $('themeColor').value : '#4B65B0',
       introduction: value('introduction'), recommendedTheme: value('recommendedTheme'), chartConstant: value('chartConstant'),
-      includeVideo: Boolean(draft.video), tags: value('tags').split(/[,，]/).map(item => item.trim()).filter(Boolean),
+      includeVideo: Boolean(draft.video),
+      tagIds: tagPicker.getSelected(), keywords: keywordEditor.getKeywords(),
       previewStart: Number(value('previewStart')), previewEnd: Number(value('previewEnd')),
     };
     const id = await submitLevel(scan, difficultyIndex, meta, (text, ratio) => {

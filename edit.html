@@ -49,6 +49,7 @@
     import { analyzeSfx } from './js/aff.js';
     import { createResourceRow, createFilePicker, formatResourceSize, thumbImage } from './js/resource-editor.js';
     import { createPreviewRangeEditor } from './js/preview-range.js';
+    import { createTagPicker, createKeywordEditor } from './js/tags.js';
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
@@ -172,7 +173,12 @@
         theme.append(option);
       }
 
-      const tags = el('input', { class: 'input', value: (level.tags || []).join(', '), placeholder: '用逗号分隔' });
+      // 受控 tag：初始值来自 level.tagIds（公开字段）。字典里已不存在的 id
+      // 组件自己会丢弃，不会原样发回去。
+      const tagPicker = createTagPicker(level.tagIds ?? [], { onChange: refreshSummary });
+      // keywords 是搜索专用的自由词，LevelResponse 只对上传者/管理员下发，
+      // 其他人打开这页拿到的是空数组——上面 canEdit 已经挡过，这里直接用。
+      const keywordEditor = createKeywordEditor(level.keywords ?? [], { onChange: refreshSummary });
       const intro = el('textarea', { class: 'input', rows: '3', maxlength: '500' });
       intro.value = level.introduction || '';
 
@@ -183,7 +189,12 @@
         el('div', { class: 'field' },
           el('label', {}, '推荐资源包主题'), theme,
           el('p', { class: 'hint' }, '建议玩这张谱时用哪种色调的资源包，纯建议。')),
-        el('div', { class: 'field' }, el('label', {}, '标签'), tags),
+        el('div', { class: 'field' },
+          el('label', {}, '标签'), tagPicker.element,
+          el('p', { class: 'hint' }, '从标签字典里选，会按分类展示在谱面详情里，也能被筛出来。')),
+        el('div', { class: 'field' },
+          el('label', {}, '搜索关键词'), keywordEditor.element,
+          el('p', { class: 'hint' }, '自由词，只进搜索、不会展示出来。曲子的别名、缩写、梗放这里。')),
         el('div', { class: 'field' }, el('label', {}, '简介'), intro),
       );
 
@@ -191,6 +202,11 @@
       // type="submit" 直接触发提交，不需要 requestSubmit。
       const save = el('button', { class: 'button primary block', type: 'submit' }, '保存修改');
       const status = el('div', { class: 'callout', hidden: true });
+
+      // tag/keyword 是整体替换语义：内容集合变没变，跟顺序无关
+      const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+      const tagsChanged = () => !sameSet(tagPicker.getSelected(), level.tagIds ?? []);
+      const keywordsChanged = () => !sameSet(keywordEditor.getKeywords(), level.keywords ?? []);
 
       // 哪些信息字段相对原值改了，返回中文标签列表。判断条件必须和下面 submit
       // handler 里的 put() 一致——摘要说的和实际提交的不能对不上。
@@ -210,9 +226,8 @@
         if ((theme.value || 'Unspecified') !== (level.recommendedTheme || 'Unspecified')) changed.push('推荐主题');
         const constantText = fields.chartConstant.value.trim();
         if (constantText !== '' && Number(constantText) !== level.chartConstant) changed.push('难度定数');
-        const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
-        const oldTags = level.tags || [];
-        if (nextTags.length !== oldTags.length || nextTags.some((t, i) => t !== oldTags[i])) changed.push('标签');
+        if (tagsChanged()) changed.push('标签');
+        if (keywordsChanged()) changed.push('搜索关键词');
         return changed;
       }
 
@@ -249,11 +264,10 @@
             patch.chartConstant = Number(constantText);
           }
 
-          const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
-          const oldTags = level.tags || [];
-          if (nextTags.length !== oldTags.length || nextTags.some((t, i) => t !== oldTags[i])) {
-            patch.tags = nextTags;
-          }
+          // tagIds/keywords 在 UpdateLevelRequest 里是非空即整体替换（空数组=清空），
+          // 所以只在真的变了时才放进 patch，没变就不发这个字段
+          if (tagsChanged()) patch.tagIds = tagPicker.getSelected();
+          if (keywordsChanged()) patch.keywords = keywordEditor.getKeywords();
 
           if (resources.hasChanges()) {
             const resourcePatch = await resources.preparePatch(text => {
@@ -270,6 +284,9 @@
 
           await updateLevel(level.id, patch);
           resources.commit();
+          // 回写基准值：保存成功后 level 还拿着旧值，tagsChanged()/infoChanges() 会继续
+          // 报告「已改」直到跳转走（1.2 秒后）。回写让这段时间里的摘要和二次提交都是准的
+          Object.assign(level, patch);
           showBox(status, isAdmin ? '已保存。' : '已保存，谱面重新进入审核队列。', 'success');
           setTimeout(() => location.href = `level.html?id=${level.id}`, 1200);
         } catch (error) {
@@ -284,7 +301,8 @@
       // 信息字段一改就刷新摘要：让「待保存」实时反映曲名/标签等改动，
       // 不用等保存时才发现改了什么
       const refreshSummary = () => resources.refreshSummary();
-      for (const node of [...Object.values(fields), themeText, theme, tags, intro]) {
+      // tagPicker/keywordEditor 不在 fields 里，它们的改动通过各自 onChange 回调进来
+      for (const node of [...Object.values(fields), themeText, theme, intro]) {
         node.addEventListener('input', refreshSummary);
       }
       // 对齐上传页：信息和资源塞进同一个 form（.card），中间用 divider 分隔，

@@ -26,10 +26,21 @@ export const SORT_OPTIONS = [
 export const PAGE_SIZE = 20;
 
 /**
- * 谱面列表。搜索会匹配曲名/曲师/谱师/画师/标签。
+ * 谱面列表。搜索会匹配曲名/曲师/谱师/画师/简介，以及 tag 翻译和搜索关键词。
+ *
+ * tag 筛选对齐客户端 SDK 的 GetLevelsAsync：
+ * - `tagIds` / `excludeTagIds` 拼成 csv（如 "5,6"），包含=AND（同时命中所有），
+ *   排除=NOT（命中任一即滤掉）。空数组不传该参数。
+ * - 定数/时长是开区间下限、含上限；ChartConstant 为 null 的谱面不会被定数范围命中。
+ *
  * @returns {Promise<{items: object[], totalCount: number, page: number, pageSize: number}>}
  */
-export function listLevels({ search = '', page = 1, pageSize = PAGE_SIZE, sortBy = 'created', sortOrder = 'desc' } = {}) {
+export function listLevels({
+  search = '', page = 1, pageSize = PAGE_SIZE, sortBy = 'created', sortOrder = 'desc',
+  tagIds = null, excludeTagIds = null,
+  minChartConstant = null, maxChartConstant = null,
+  minDuration = null, maxDuration = null,
+} = {}) {
   const query = new URLSearchParams({
     page: String(page),
     pageSize: String(Math.min(pageSize, MAX_PAGE_SIZE)),
@@ -37,6 +48,13 @@ export function listLevels({ search = '', page = 1, pageSize = PAGE_SIZE, sortBy
     sortOrder,
   });
   if (search.trim()) query.set('search', search.trim());
+  // int 不需转义，直接 join
+  if (tagIds?.length) query.set('tagId', tagIds.join(','));
+  if (excludeTagIds?.length) query.set('excludeTagId', excludeTagIds.join(','));
+  if (minChartConstant != null) query.set('minChartConstant', String(minChartConstant));
+  if (maxChartConstant != null) query.set('maxChartConstant', String(maxChartConstant));
+  if (minDuration != null) query.set('minDuration', String(minDuration));
+  if (maxDuration != null) query.set('maxDuration', String(maxDuration));
   return get(`/api/levels?${query}`);
 }
 

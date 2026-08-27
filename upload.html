@@ -76,7 +76,8 @@
 
         <div class="field"><label for="themeColor">主题色</label><div class="input-row"><input class="input" id="themeColor" value="#4B65B0" maxlength="7" pattern="#[0-9A-Fa-f]{6}"><input class="input swatch" id="themeSwatch" type="color" value="#4B65B0" aria-label="选择主题色"></div></div>
         <div class="field"><label for="recommendedTheme">推荐资源包主题</label><select class="select" id="recommendedTheme"><option value="">不指定</option><option value="Light">明亮</option><option value="Dark">暗色</option></select><p class="hint">建议玩这张谱时用哪种色调的资源包，纯建议。</p></div>
-        <div class="field"><label for="tags">标签</label><input class="input" id="tags" placeholder="用逗号分隔，例如 原创, 高难"></div>
+        <div class="field"><label>标签</label><div id="tags-picker"></div><p class="hint">从标签字典里选，会按分类展示在谱面详情里，也能被筛出来。</p></div>
+        <div class="field"><label>搜索关键词</label><div id="keywords-editor"></div><p class="hint">自由词，只进搜索、不会展示出来。曲子的别名、缩写、梗放这里。</p><p class="hint">上传后可以编辑补充。</p></div>
         <div class="field"><label for="introduction">简介</label><textarea class="input" id="introduction" rows="3" maxlength="500"></textarea></div>
 
         <div class="callout warning" id="attribution-note">

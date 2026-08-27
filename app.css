@@ -1587,3 +1587,100 @@ a.uploader-card:hover .uploader-name { text-decoration: underline; text-underlin
 .unused-files summary { cursor: pointer; color: var(--muted); }
 .unused-files ul { margin: 8px 0 0 18px; padding: 0; }
 .diff-pick .resource-candidates { display: block; margin-top: 6px; }
+
+/* ---------- 受控 tag 系统 ---------- */
+
+/*
+ * 三处共用一个视觉词汇：chip（可选/已选的小块）+ 分组标签（eyebrow）。
+ * 交互色就是白：选中 = 反白，排除 = 反白加删除线，不引入新的强调色。
+ * 所有 display-bearing 的容器都配了 [hidden] 压回，这个坑栽过三次。
+ */
+
+/* 详情页的 tag 行：分组标签 + chip 横排折行。分组标签自身是 eyebrow（小字距大写），
+   和 chip 基线对齐需要一个固定行高 */
+.tag-row .tag-group-label { align-self: center; margin-right: 2px; }
+a.tag { text-decoration: none; transition: color .15s var(--ease), border-color .15s var(--ease); }
+a.tag:hover { color: var(--text); border-color: var(--line-strong); }
+
+/* 选择器（上传/编辑）：已选行 + 可选区。已选行为空时不占高度 */
+.tag-selected-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tag-selected-row:empty { display: none; }
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 9px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+}
+.tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .15s var(--ease);
+}
+.tag-chip-remove:hover { color: var(--text); }
+
+/* 可选区：按类别分组的 chip 墙，编辑器和筛选面板共用 */
+.tag-picker { display: flex; flex-direction: column; gap: 12px; }
+.tag-group { display: flex; flex-direction: column; gap: 7px; }
+.tag-group-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.tag-option {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+}
+.tag-option:hover { color: var(--text); border-color: var(--line-strong); }
+/* 选中 = 反白（和 .title-option.active / .period.current 同一个手势） */
+.tag-option.is-on { color: var(--bg); border-color: var(--text); background: var(--text); }
+/* 排除（仅高级筛选有）：同样反白但加删除线，和「包含」区分开 */
+.tag-option.is-excluded { color: var(--bg); border-color: var(--text); background: var(--text); text-decoration: line-through; }
+
+/* 字典为空时的占位说明，和表单里的 .hint 一个调性但用在非表单处（筛选面板、分类墙） */
+.tag-hint { margin: 0; color: var(--faint); font-size: 12.5px; }
+
+/* 搜索关键词编辑器：已选 chip 行复用 .tag-selected-row/.tag-chip */
+.keyword-editor .keyword-input-row { display: flex; gap: 8px; }
+.keyword-input-row .input { flex: 1 1 auto; }
+.keyword-input-row .button { flex: 0 0 auto; }
+
+/* 谱面库工具行里的筛选按钮：激活态反白 + 计数 */
+#filter-toggle.is-active { color: var(--bg); background: var(--text); border-color: var(--text); }
+
+/* 高级筛选面板：贴在工具行下方的内联折叠区，上下各一条细线把它和列表分开 */
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.filter-panel[hidden] { display: none; }
+
+.filter-ranges { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.filter-range { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.filter-range .input { width: 84px; }
+
+.filter-actions { display: flex; justify-content: flex-end; }
+
+/* 分类浏览的标签墙：比选择器更松，是「逛」的入口不是表单控件 */
+.category-wall { display: flex; flex-direction: column; gap: 18px; margin-bottom: 22px; }
+.category-wall[hidden] { display: none; }

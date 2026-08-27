@@ -13,6 +13,7 @@
 import {
   getApiBase, resolveFailure, scheduleProbe, fetchWithTimeout, isEdgeFailure,
 } from './endpoint.js';
+import { clearTagDictionary } from './tags.js';
 
 const TOKEN_KEY = 'anoawa.token';
 const PROFILE_KEY = 'anoawa.profile';
@@ -108,6 +109,8 @@ export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(PROFILE_KEY);
   accountToken = null;
+  // tag 字典是会话级缓存，不该带进下一个会话
+  clearTagDictionary();
 }
 
 /**

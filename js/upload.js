@@ -317,7 +317,10 @@ export async function submitLevel(scan, difficultyIndex, meta, report, { signal,
     chartConstant: meta.chartConstant === '' ? null : Number(meta.chartConstant),
     // 传 0 跳过交叉校验：写库的永远是服务端 NVorbis 实测的值
     durationSeconds: 0,
-    tags: meta.tags,
+    // 受控 tag（int id 列表）+ 仅搜索的自由关键词；旧自由文本 tags 字段后端已删除，
+    // 再传会被 System.Text.Json 静默丢掉
+    tagIds: meta.tagIds,
+    keywords: meta.keywords,
     coverFileId: fileIds.cover,
     musicFileId: fileIds.music,
     chartFileId: fileIds.chart,

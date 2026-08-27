@@ -44,6 +44,9 @@
       displayName, showBox, avatarImage,
     } from './js/ui.js';
     import { createPreviewPlayer } from './js/audio.js';
+    import {
+      getTagDictionary, findTag, findCategory, tagName, categoryName, UNCATEGORIZED,
+    } from './js/tags.js';
 
     if (!requireLogin()) throw new Error('redirecting');
     document.getElementById('logout').addEventListener('click', logout);
@@ -113,7 +116,7 @@
           level.artistName ? ` · 曲绘 ${level.artistName}` : null),
         specRow(level),
         uploaderBlock(level),
-        tagRow(level.tags),
+        tagRow(level.tagIds),
         actions(level),
       );
 
@@ -214,9 +217,44 @@
         : el('a', { class: 'uploader-card', href: `user.html?id=${person.profileId}` }, inner);
     }
 
-    function tagRow(tags) {
-      if (!tags?.length) return null;
-      return el('div', { class: 'tag-row' }, tags.map(tag => el('span', { class: 'tag' }, tag)));
+    /**
+     * 受控 tag：按类别分组展示，chip 可点击、跳到分类浏览（view=category&tag=N）。
+     * 字典拉不到（网络挂了）或某个 id 已不在字典里（被管理员删掉/合并）就跳过——
+     * 对齐客户端的做法，不渲染 `#id` 这种内部占位。tag 行异步填进 hero 的 info 区，
+     * 不阻塞首屏。
+     */
+    function tagRow(tagIds) {
+      if (!tagIds?.length) return null;
+      const row = el('div', { class: 'tag-row' });
+      getTagDictionary().then(dict => {
+        if (!dict) return;
+        // 按类别分组，组内保持 tagIds 的顺序（谱师自己挑的顺序）
+        const byCategory = new Map();   // categoryId|null -> tag[]
+        for (const id of tagIds) {
+          const tag = findTag(dict, id);
+          if (!tag) continue;
+          const key = tag.categoryId ?? null;
+          if (!byCategory.has(key)) byCategory.set(key, []);
+          byCategory.get(key).push(tag);
+        }
+        // 组的顺序按字典里类别的顺序，其它组在最后
+        const orderedKeys = (dict.categories ?? []).map(c => c.id).filter(id => byCategory.has(id));
+        if (byCategory.has(null)) orderedKeys.push(null);
+
+        for (const key of orderedKeys) {
+          const tags = byCategory.get(key);
+          const label = key === null ? UNCATEGORIZED : categoryName(dict, findCategory(dict, key));
+          row.append(el('span', { class: 'tag-group-label eyebrow' }, label));
+          for (const tag of tags) {
+            row.append(el('a', {
+              class: 'tag',
+              href: `index.html?view=category&tag=${tag.id}`,
+              title: `浏览所有「${tagName(dict, tag)}」谱面`,
+            }, tagName(dict, tag)));
+          }
+        }
+      }).catch(() => {});
+      return row;
     }
 
     function actions(level) {

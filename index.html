@@ -56,6 +56,7 @@
     <div class="tabs" role="tablist" aria-label="浏览方式">
       <button class="tab" role="tab" id="tab-all" aria-selected="true">全部谱面</button>
       <button class="tab" role="tab" id="tab-hot" aria-selected="false">热门</button>
+      <button class="tab" role="tab" id="tab-category" aria-selected="false">分类</button>
     </div>
 
     <div class="hot-periods" id="hot-periods" hidden role="group" aria-label="统计周期"></div>
@@ -69,7 +70,11 @@
         <option value="asc">升序</option>
       </select>
       <button class="button" type="submit">搜索</button>
+      <button class="button" type="button" id="filter-toggle" aria-expanded="false">筛选</button>
     </form>
+
+    <div class="filter-panel" id="filter-panel" hidden></div>
+    <div class="category-wall" id="category-wall" hidden></div>
 
     <p class="result-meta" id="meta"></p>
     <div class="callout" id="get-hint" hidden>
@@ -92,6 +97,9 @@
     import { listLevels, getHotLevels, SORT_OPTIONS, PAGE_SIZE, HOT_PERIODS } from './js/levels.js';
     import { levelCard } from './js/level-card.js';
     import { refreshInboxBadge } from './js/inbox.js';
+    import {
+      getTagDictionary, groupByCategory, tagChipGroup, tagName, findTag,
+    } from './js/tags.js';
     import {
       el, showBox, hideBox, clear, formatCount,
     } from './js/ui.js';
@@ -133,14 +141,33 @@
     const errorBox = document.getElementById('error');
     const pager = document.getElementById('pager');
 
+    /** 解析 csv 数字参数；混进了非数字的串整组丢弃（后端会 400，前端先挡一道）。 */
+    function parseIdCsv(raw) {
+      if (!raw) return [];
+      const parts = raw.split(',');
+      const ids = parts.map(p => Number.parseInt(p.trim(), 10));
+      return ids.every(Number.isFinite) ? ids : [];
+    }
+
+    /** 解析数值范围参数；空串/非数字按「不筛选」处理。 */
+    function parseRange(raw) {
+      if (raw === null || raw === '') return null;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : null;
+    }
+
     for (const option of SORT_OPTIONS) {
       sortSelect.append(el('option', { value: option.value }, option.label));
     }
 
     const tabAll = document.getElementById('tab-all');
     const tabHot = document.getElementById('tab-hot');
+    const tabCategory = document.getElementById('tab-category');
     const periodBox = document.getElementById('hot-periods');
     const toolbar = document.getElementById('toolbar');
+    const filterToggle = document.getElementById('filter-toggle');
+    const filterPanel = document.getElementById('filter-panel');
+    const categoryWall = document.getElementById('category-wall');
 
     // 状态放 URL 里：刷新、前进后退、分享链接都能还原同一屏结果
     const state = readState();
@@ -159,14 +186,183 @@
       periodBox.append(button);
     }
 
-    /** 全部谱面和热门是两套不同的取数与呈现，由 load() 按 state.view 分派。 */
+    /** 当前激活的筛选项数量：互斥的一对（同 id 既含又排）算两项，对齐客户端 FilteredTagCount。 */
+    function activeFilterCount() {
+      return state.tagIds.length + state.excludeTagIds.length
+        + ['minChartConstant', 'maxChartConstant', 'minDuration', 'maxDuration']
+          .filter(key => state[key] !== null).length;
+    }
+
+    /** 筛选按钮上的激活指示：客户端没做这个，网页补上——面板折叠时也能看出筛选在生效。 */
+    function paintFilterToggle() {
+      const count = activeFilterCount();
+      filterToggle.textContent = count ? `筛选 · ${count}` : '筛选';
+      filterToggle.classList.toggle('is-active', count > 0);
+    }
+
+    /** 分类浏览下隐藏的高级筛选面板。 */
+    function buildFilterPanel() {
+      clear(filterPanel);
+      const panelDict = tagDict;
+      if (!panelDict?.tags?.length) {
+        filterPanel.append(el('p', { class: 'tag-hint' },
+          '标签字典为空（管理员尚未建立标签）。请检查网络后重试，若持续为空请联系管理员。'));
+      } else {
+        const groupBox = el('div', { class: 'tag-picker' });
+        for (const { category, tags } of groupByCategory(panelDict)) {
+          groupBox.append(tagChipGroup(panelDict, category, tags,
+            tag => cycleTagState(tag.id),
+            tag => {
+              if (state.tagIds.includes(tag.id)) return 'is-on';
+              if (state.excludeTagIds.includes(tag.id)) return 'is-excluded';
+              return null;
+            }));
+        }
+        filterPanel.append(groupBox);
+        filterPanel.append(el('p', { class: 'tag-hint' },
+          '点一次=必须包含，再点一次=排除，第三次取消。包含之间是「且」，排除命中任一即滤掉。'));
+      }
+
+      const rangeRow = el('div', { class: 'filter-ranges' });
+      const rangeField = (label, key, attrs) => el('label', { class: 'filter-range' },
+        el('span', {}, label),
+        el('input', {
+          class: 'input', type: 'number', ...attrs,
+          value: state[key] === null ? '' : String(state[key]),
+          oninput: event => {
+            const raw = event.target.value.trim();
+            state[key] = raw === '' ? null : Number(raw);
+            state.page = 1;
+            load();
+          },
+        }));
+      rangeRow.append(
+        rangeField('定数 ≥', 'minChartConstant', { step: '0.1', min: '0', max: '20' }),
+        rangeField('定数 ≤', 'maxChartConstant', { step: '0.1', min: '0', max: '20' }),
+        rangeField('时长 ≥（秒）', 'minDuration', { step: '1', min: '0' }),
+        rangeField('时长 ≤（秒）', 'maxDuration', { step: '1', min: '0' }),
+      );
+      filterPanel.append(rangeRow);
+
+      const actions = el('div', { class: 'filter-actions' });
+      const clearAll = el('button', { class: 'button small ghost', type: 'button' }, '清空筛选');
+      clearAll.addEventListener('click', () => {
+        state.tagIds = [];
+        state.excludeTagIds = [];
+        state.minChartConstant = state.maxChartConstant = null;
+        state.minDuration = state.maxDuration = null;
+        state.page = 1;
+        load();
+      });
+      actions.append(clearAll);
+      filterPanel.append(actions);
+    }
+
+    /** 三态切换：无 → 包含 → 排除 → 无。与客户端 AdvancedFilterPanel 的 CycleTagState 一致。 */
+    function cycleTagState(id) {
+      if (state.tagIds.includes(id)) {
+        state.tagIds = state.tagIds.filter(x => x !== id);
+        state.excludeTagIds = [...state.excludeTagIds, id];
+      } else if (state.excludeTagIds.includes(id)) {
+        state.excludeTagIds = state.excludeTagIds.filter(x => x !== id);
+      } else {
+        state.tagIds = [...state.tagIds, id];
+      }
+      state.page = 1;
+      load();
+    }
+
+    /** 分类浏览的 tag 墙：每个分类一组 chip，点 chip 进 tag 浏览视图。 */
+    function buildCategoryWall() {
+      clear(categoryWall);
+      if (!tagDict?.tags?.length) {
+        categoryWall.append(el('div', { class: 'empty' },
+          el('h3', {}, '还没有可用的标签'),
+          el('p', {}, '管理员建立标签字典之后，这里会按分类展示全部标签。')));
+        return;
+      }
+      for (const { category, tags } of groupByCategory(tagDict)) {
+        categoryWall.append(tagChipGroup(tagDict, category, tags,
+          tag => {
+            state.categoryTagId = tag.id;
+            state.page = 1;
+            load();
+          },
+          tag => (state.categoryTagId === tag.id ? 'is-on' : null)));
+      }
+    }
+
+    /** 分类浏览视图（view === 'category'）。*/
+    async function renderCategory() {
+      categoryWall.hidden = false;
+      const seq = requestSeq;   // load() 已经 ++requestSeq，这里用它判断自己是否仍是最新
+
+      if (!tagDict) {
+        // 首次拉取失败（缓存为空时 getTagDictionary 就是 get() 本身，会抛）要报出来，
+        // 不能吞成 tagDict=null——否则网络故障会被下面的空态文案显示成「管理员还没建字典」
+        try {
+          tagDict = await getTagDictionary();
+        } catch (error) {
+          if (seq !== requestSeq) return;
+          clear(grid);
+          categoryWall.hidden = true;
+          pager.hidden = true;
+          showBox(errorBox, describeError(error), 'error');
+          return;
+        }
+        if (seq !== requestSeq) return;
+      }
+      buildCategoryWall();
+
+      if (state.categoryTagId === null) {
+        clear(grid);
+        pager.hidden = true;
+        meta.textContent = tagDict?.tags?.length ? '点一个标签，看被打上它的谱面。' : '';
+        return;
+      }
+
+      const tag = findTag(tagDict, state.categoryTagId);
+      if (!tag) {
+        // 字典里没了（被管理员删掉/合并）：回退到标签墙
+        state.categoryTagId = null;
+        meta.textContent = '这个标签已经不存在了，重新挑一个。';
+        clear(grid);
+        pager.hidden = true;
+        return;
+      }
+
+      try {
+        const result = await listLevels({
+          search: state.search, page: state.page, pageSize: PAGE_SIZE,
+          sortBy: state.sortBy, sortOrder: state.sortOrder,
+          tagIds: [state.categoryTagId],
+        });
+        if (seq !== requestSeq) return;
+        render(result);
+        const name = tagName(tagDict, tag);
+        meta.textContent = `标签「${name}」· ${meta.textContent}`;
+      } catch (error) {
+        if (seq !== requestSeq) return;
+        clear(grid);
+        showBox(errorBox, describeError(error), 'error');
+      }
+    }
+
+    /** 全部谱面 / 热门 / 分类 是三种取数与呈现，由 load() 按 state.view 分派。 */
     function paintView() {
       const isHot = state.view === 'hot';
-      tabAll.setAttribute('aria-selected', String(!isHot));
+      const isCategory = state.view === 'category';
+      tabAll.setAttribute('aria-selected', String(!isHot && !isCategory));
       tabHot.setAttribute('aria-selected', String(isHot));
+      tabCategory.setAttribute('aria-selected', String(isCategory));
       periodBox.hidden = !isHot;
-      // 热榜是后端算好的固定 Top 50，搜索、排序和分页都不适用
+      categoryWall.hidden = true;
+      // 热榜是后端算好的固定 Top 50，搜索、排序、筛选和分页都不适用
       toolbar.hidden = isHot;
+      filterPanel.hidden = true;
+      filterToggle.setAttribute('aria-expanded', 'false');
+      filterToggle.textContent = '筛选';
+      filterToggle.classList.remove('is-active');
       for (const button of periodBox.children) {
         button.classList.toggle('current', button.dataset.period === state.period);
       }
@@ -181,6 +377,14 @@
 
     tabAll.addEventListener('click', () => selectView('all'));
     tabHot.addEventListener('click', () => selectView('hot'));
+    tabCategory.addEventListener('click', () => selectView('category'));
+
+    filterToggle.addEventListener('click', () => {
+      const opening = filterPanel.hidden;
+      filterPanel.hidden = !opening;
+      filterToggle.setAttribute('aria-expanded', String(opening));
+      if (opening && tagDict) buildFilterPanel();
+    });
 
     form.addEventListener('submit', event => {
       event.preventDefault();
@@ -203,6 +407,7 @@
       searchInput.value = state.search;
       sortSelect.value = state.sortBy;
       orderSelect.value = state.sortOrder;
+      paintFilterToggle();
       load({ push: false });
     });
 
@@ -226,6 +431,8 @@
     // 错误变成未处理的 rejection，页面上一片空白、控制台之外毫无提示——
     // 而点搜索时模块顶层已执行完，反而正常，症状会非常费解。
     let requestSeq = 0;
+    // tag 字典：分类墙和筛选面板共用，第一次进这两个视图时才去拉
+    let tagDict = null;
 
     load({ push: false });
 
@@ -233,6 +440,13 @@
       const seq = ++requestSeq;
       hideBox(errorBox);
       paintView();
+
+      if (state.view === 'category') {
+        await renderCategory();
+        if (push) writeState();
+        return;
+      }
+
       renderSkeletons();
       pager.hidden = true;
       meta.textContent = '';
@@ -245,9 +459,20 @@
           if (seq !== requestSeq) return;
           renderHot(result);
         } else {
-          const result = await listLevels({ ...state, pageSize: PAGE_SIZE });
+          // 全部谱面：带上高级筛选。分类浏览不走这条路（renderCategory 自己拉）。
+          const result = await listLevels({
+            search: state.search, page: state.page, pageSize: PAGE_SIZE,
+            sortBy: state.sortBy, sortOrder: state.sortOrder,
+            tagIds: state.tagIds, excludeTagIds: state.excludeTagIds,
+            minChartConstant: state.minChartConstant, maxChartConstant: state.maxChartConstant,
+            minDuration: state.minDuration, maxDuration: state.maxDuration,
+          });
           if (seq !== requestSeq) return;
           render(result);
+          if (state.view === 'all') {
+            paintFilterToggle();
+            if (!filterPanel.hidden) buildFilterPanel();
+          }
         }
       } catch (error) {
         if (seq !== requestSeq) return;   // 已经有更新的请求发出去了，丢弃这次的结果
@@ -338,8 +563,18 @@
       const params = new URLSearchParams(location.search);
       const sortBy = params.get('sort') || 'created';
       const period = params.get('period') || 'week';
+      const view = ['hot', 'category'].includes(params.get('view')) ? params.get('view') : 'all';
+      const tagRaw = params.get('tag');
+      const categoryTagId = view === 'category' && tagRaw !== null && /^\d+$/.test(tagRaw)
+        ? Number.parseInt(tagRaw, 10) : null;
+      // 裸 tag 兜底：detail 页生成的是 view=category&tag=N，有人手改成 view=all 时
+      // 不该把这个 tag 静默丢了——灌进 tagIds，等价于「带着这个 tag 继续筛」
+      const fallbackTagIds = view !== 'category' && tagRaw !== null && /^\d+$/.test(tagRaw)
+        ? [Number.parseInt(tagRaw, 10)] : [];
+      const urlTagIds = parseIdCsv(params.get('tagIds'));
+      const tagIds = urlTagIds.length ? urlTagIds : fallbackTagIds;
       return {
-        view: params.get('view') === 'hot' ? 'hot' : 'all',
+        view,
         // 后端 NormalizePeriod 对无法识别的值有自己的兜底，这里也挡一道保持 UI 一致
         period: HOT_PERIODS.some(p => p.value === period) ? period : 'week',
         search: params.get('q') || '',
@@ -347,6 +582,15 @@
         // 后端对无法识别的 sortBy 会静默落回 created，这里先挡一道，免得 UI 显示的和实际排序不一致
         sortBy: SORT_OPTIONS.some(o => o.value === sortBy) ? sortBy : 'created',
         sortOrder: params.get('order') === 'asc' ? 'asc' : 'desc',
+        // 高级筛选：tag 包含/排除 + 定数/时长范围。detail 页的 tag chip 也靠
+        // view=category&tag=N 跳进来，所以 tag 用独立参数而不是塞进 tagIds
+        tagIds,
+        excludeTagIds: parseIdCsv(params.get('excludeTagIds')),
+        minChartConstant: parseRange(params.get('minCc')),
+        maxChartConstant: parseRange(params.get('maxCc')),
+        minDuration: parseRange(params.get('minDur')),
+        maxDuration: parseRange(params.get('maxDur')),
+        categoryTagId,
         totalPages: 0,
       };
     }
@@ -360,10 +604,27 @@
         history.pushState(null, '', query ? `?${query}` : location.pathname);
         return;
       }
+      if (state.view === 'category') {
+        params.set('view', 'category');
+        if (state.categoryTagId !== null) params.set('tag', String(state.categoryTagId));
+        if (state.search.trim()) params.set('q', state.search.trim());
+        if (state.page > 1) params.set('page', String(state.page));
+        if (state.sortBy !== 'created') params.set('sort', state.sortBy);
+        if (state.sortOrder !== 'desc') params.set('order', state.sortOrder);
+        const query = params.toString();
+        history.pushState(null, '', query ? `?${query}` : location.pathname);
+        return;
+      }
       if (state.search.trim()) params.set('q', state.search.trim());
       if (state.page > 1) params.set('page', String(state.page));
       if (state.sortBy !== 'created') params.set('sort', state.sortBy);
       if (state.sortOrder !== 'desc') params.set('order', state.sortOrder);
+      if (state.tagIds.length) params.set('tagIds', state.tagIds.join(','));
+      if (state.excludeTagIds.length) params.set('excludeTagIds', state.excludeTagIds.join(','));
+      if (state.minChartConstant !== null) params.set('minCc', String(state.minChartConstant));
+      if (state.maxChartConstant !== null) params.set('maxCc', String(state.maxChartConstant));
+      if (state.minDuration !== null) params.set('minDur', String(state.minDuration));
+      if (state.maxDuration !== null) params.set('maxDur', String(state.maxDuration));
 
       const query = params.toString();
       history.pushState(null, '', query ? `?${query}` : location.pathname);
