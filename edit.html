@@ -192,6 +192,30 @@
       const save = el('button', { class: 'button primary block', type: 'submit' }, '保存修改');
       const status = el('div', { class: 'callout', hidden: true });
 
+      // 哪些信息字段相对原值改了，返回中文标签列表。判断条件必须和下面 submit
+      // handler 里的 put() 一致——摘要说的和实际提交的不能对不上。
+      function infoChanges() {
+        const changed = [];
+        const text = (node, original) => node.value.trim() !== original;
+        if (text(fields.levelName, level.levelName)) changed.push('曲名');
+        if (text(fields.composerName, level.composerName)) changed.push('曲师');
+        if (text(fields.charterName, level.charterName)) changed.push('谱师');
+        if (text(fields.artistName, level.artistName)) changed.push('曲绘');
+        if (text(fields.displayDifficulty, level.displayDifficulty)) changed.push('显示难度');
+        if ((Number(fields.baseBpm.value) || 0) !== level.baseBpm) changed.push('基准BPM');
+        if (fields.bpm.value.trim() !== (level.bpm ?? '')) changed.push('显示BPM');
+        const themeNorm = /^#[0-9a-f]{6}$/i.test(themeText.value) ? themeText.value : '#4B65B0';
+        if (themeNorm !== (level.themeColor || '#4B65B0')) changed.push('主题色');
+        if (intro.value.trim() !== (level.introduction ?? '')) changed.push('简介');
+        if ((theme.value || 'Unspecified') !== (level.recommendedTheme || 'Unspecified')) changed.push('推荐主题');
+        const constantText = fields.chartConstant.value.trim();
+        if (constantText !== '' && Number(constantText) !== level.chartConstant) changed.push('难度定数');
+        const nextTags = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+        const oldTags = level.tags || [];
+        if (nextTags.length !== oldTags.length || nextTags.some((t, i) => t !== oldTags[i])) changed.push('标签');
+        return changed;
+      }
+
       form.addEventListener('submit', async event => {
         event.preventDefault();
         if (!form.reportValidity()) return;
@@ -256,16 +280,19 @@
         }
       });
 
-      const resources = resourceSection(level, isAdmin);
+      const resources = resourceSection(level, infoChanges);
+      // 信息字段一改就刷新摘要：让「待保存」实时反映曲名/标签等改动，
+      // 不用等保存时才发现改了什么
+      const refreshSummary = () => resources.refreshSummary();
+      for (const node of [...Object.values(fields), themeText, theme, tags, intro]) {
+        node.addEventListener('input', refreshSummary);
+      }
       // 对齐上传页：信息和资源塞进同一个 form（.card），中间用 divider 分隔，
       // 保存栏（摘要 + 按钮 + 状态）在 form 底部。这样信息和资源是一体的，
       // 保存入口在两块内容之后，不用再上滚。合作者/转让/删除是各自独立的提交，仍分开。
       form.append(
         el('hr', { class: 'divider' }),
         el('h2', { class: 'section-title' }, '资源清单'),
-        el('p', { class: 'hint', style: 'margin:-6px 0 16px' },
-          isAdmin ? '可以逐项替换或删除，最后和上面的信息一起点击「保存修改」。' :
-            '可以逐项替换或删除；所有改动会在一次保存时提交，保存后谱面会重新进入审核。'),
         resources.element);
       const saveBar = el('div', { class: 'save-bar' },
         resources.summary,
@@ -285,7 +312,7 @@
      * （不含标题外壳，由 renderForm 拼进信息 card 里，中间用 divider 分隔，对齐上传页
      * 「信息和资源同框」的结构），summary 是「待保存」摘要，挪到保存栏和按钮一起。
      */
-    function resourceSection(level, isAdmin) {
+    function resourceSection(level, infoChanges) {
       const rows = el('div', { class: 'resource-list' });
       const summary = el('div', { class: 'upload-summary' });
       const status = el('div', { class: 'callout', hidden: true });
@@ -293,6 +320,9 @@
       let packageModel = null;
       let packageError = null;
       let packageDirty = false;
+      // 包内各槽位是否相对初始状态变过，用来在摘要里展开具体改了什么，
+      // 而不是笼统说一句「修改谱面内资源」
+      let pkgChartDirty = false, pkgBgDirty = false, pkgEffectDirty = false, pkgSfxDirty = false;
       let packageAnalysis = null;
       let packageLoading = true;
       let rangeEditor = null;
@@ -366,13 +396,20 @@
       function updateResourceSummary() {
         clear(summary);
         const changes = [];
+        // 信息字段改动（曲名/曲师/标签等）和资源改动都列出来，让人在提交前
+        // 一眼看清这次保存会动哪些东西，而不是笼统一句「修改谱面内资源」
+        for (const label of infoChanges()) changes.push(label);
         if (draft.cover) changes.push('替换封面');
         if (draft.music) changes.push('替换音乐');
         if (rangeDirty) changes.push('调整预览区间');
         if (draft.video) changes.push('替换背景视频');
         if (draft.removeVideo) changes.push('删除背景视频');
-        if (packageDirty) changes.push('修改谱面内资源');
-        summary.textContent = changes.length ? `待保存：${changes.join('、')}` : '尚未选择资源改动';
+        // 包内改动展开到具体槽位，不再合并成「修改谱面内资源」
+        if (pkgChartDirty) changes.push('替换谱面');
+        if (pkgBgDirty) changes.push('替换背景图');
+        if (pkgEffectDirty) changes.push('替换演出效果');
+        if (pkgSfxDirty) changes.push('增删音效');
+        summary.textContent = changes.length ? `待保存：${changes.join('、')}` : '尚未选择改动';
       }
 
       function renderRows() {
@@ -465,7 +502,7 @@
               try { packageModel = await openChartPackage(new Uint8Array(await file.arrayBuffer())); }
               catch (error) { showBox(status, error.message, 'error'); return; }
             } else packageModel.chart = { file, name: 'chart.aff' };
-            packageDirty = true;
+            packageDirty = true; pkgChartDirty = true;
             packageAnalysis = null;
             await refreshPackageAnalysis();
             renderRows();
@@ -476,28 +513,28 @@
         const background = createResourceRow({
           label: '背景图', hint: '包内 bg.jpg，可选。', accept: 'image/*', value: model.background,
           preview: model.background ? thumbImage('background', localUrl(model.background.file || new Blob([model.background.data], { type: 'image/jpeg' })), '当前背景图') : null,
-          onChoose: files => { if (files[0]) { model.background = { file: files[0], name: 'bg.jpg' }; packageDirty = true; renderRows(); } },
-          onRemove: () => { model.background = null; packageDirty = true; renderRows(); },
+          onChoose: files => { if (files[0]) { model.background = { file: files[0], name: 'bg.jpg' }; packageDirty = true; pkgBgDirty = true; renderRows(); } },
+          onRemove: () => { model.background = null; packageDirty = true; pkgBgDirty = true; renderRows(); },
         });
         rows.append(background.element);
 
         const effect = createResourceRow({
           label: '演出效果', hint: '包内 effect.bin，可选。', accept: '.bin', value: model.effect,
-          onChoose: files => { if (files[0]) { model.effect = { file: files[0], name: 'effect.bin' }; packageDirty = true; renderRows(); } },
-          onRemove: () => { model.effect = null; packageDirty = true; renderRows(); },
+          onChoose: files => { if (files[0]) { model.effect = { file: files[0], name: 'effect.bin' }; packageDirty = true; pkgEffectDirty = true; renderRows(); } },
+          onRemove: () => { model.effect = null; packageDirty = true; pkgEffectDirty = true; renderRows(); },
         });
         rows.append(effect.element);
 
         const sfx = el('div', { class: 'resource-row' });
         const add = createFilePicker({ accept: '.wav,audio/wav', multiple: true, label: '添加音效', onFiles: files => {
           for (const file of files) model.sfx.push({ file, name: file.name });
-          packageDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows();
+          packageDirty = true; pkgSfxDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows();
         }});
         const list = el('div', { class: 'resource-sfx-list' });
         for (const [index, sound] of model.sfx.entries()) {
           const item = el('div', { class: 'resource-sfx-item' }, el('span', {}, `${sound.name}（${formatResourceSize(sound.data?.length || sound.file?.size || 0)}）`));
           const remove = el('button', { class: 'button small ghost', type: 'button' }, '删除');
-          remove.addEventListener('click', () => { model.sfx.splice(index, 1); packageDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows(); });
+          remove.addEventListener('click', () => { model.sfx.splice(index, 1); packageDirty = true; pkgSfxDirty = true; packageAnalysis = null; refreshPackageAnalysis(); renderRows(); });
           item.append(remove); list.append(item);
         }
         sfx.append(el('div', { class: 'resource-head' }, el('strong', {}, `天键音效${model.sfx.length ? `（${model.sfx.length} 个）` : ''}`), el('span', { class: 'resource-hint' }, '按文件名与 AFF 的 fx 字段对应，可添加或删除。')), el('div', { class: 'resource-actions' }, add.button, add.input), list);
@@ -560,7 +597,7 @@
         return patch;
       };
       const commit = () => {};
-      return { element, summary, hasChanges, preparePatch, commit };
+      return { element, summary, hasChanges, preparePatch, commit, refreshSummary: updateResourceSummary };
     }
 
     /**
