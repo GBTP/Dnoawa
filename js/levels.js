@@ -201,9 +201,19 @@ export function claimLevelTransfer(code) {
   return post('/api/levels/claim', { code: code.trim() });
 }
 
-/** 切换点赞，返回切换后的状态。 */
+/** 切换点赞，返回切换后的状态。旧端点，保留兼容。 */
 export function toggleLike(id) {
   return post(`/api/levels/${id}/like`);
+}
+
+/**
+ * 设置评价（Like / What / Dislike）。同值再发 = 取消，不同值 = 切换。
+ * 必须游玩过该谱面才能评价，否则服务端返 403。
+ * @param {'Like'|'What'|'Dislike'} type
+ * @returns {Promise<{myFeedback: string|null, likeCount: number, whatCount: number, dislikeCount: number}>}
+ */
+export function setFeedback(id, type) {
+  return post(`/api/levels/${id}/feedback`, { type });
 }
 
 /** 客户端 LeaderboardPanel 请求的条数，两端保持一致。 */

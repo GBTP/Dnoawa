@@ -34,7 +34,7 @@
   <script type="module">
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
     import {
-      getLevel, toggleLike, getLeaderboard, getAroundMe, getMyBest,
+      getLevel, toggleLike, setFeedback, getLeaderboard, getAroundMe, getMyBest,
       COMBO_LABELS, STATUS_LABELS, LEADERBOARD_SIZE,
     } from './js/levels.js';
     import { difficultyTier } from './js/songlist.js';
@@ -146,7 +146,9 @@
         ['BPM', level.bpm || String(level.baseBpm || ''), false],
         ['时长', formatDuration(level.durationSeconds), false],
         ['游玩', formatCount(level.playCount), false],
-        ['点赞', formatCount(level.likeCount), false],
+        ['赞', formatCount(level.likeCount), false],
+        ['何意味', formatCount(level.whatCount), false],
+        ['踩', formatCount(level.dislikeCount), false],
       ];
 
       return el('div', { class: 'spec-row' },
@@ -258,34 +260,63 @@
     }
 
     function actions(level) {
-      const like = el('button', { class: 'button like-button', type: 'button' });
+      // 三态评价：赞 / 何意味 / 踩。同值再发 = 取消，不同值 = 切换。
+      // myFeedback 来自 LevelResponse（"Like"/"What"/"Dislike" 或 null）。
+      // 必须游玩过才能评价（后端按 PlayRecords 判据），没玩过按钮置灰。
+      const TYPES = [
+        { key: 'Like',    icon: '♡', label: '赞',     count: () => level.likeCount },
+        { key: 'What',    icon: '？', label: '何意味', count: () => level.whatCount },
+        { key: 'Dislike', icon: '↓', label: '踩',     count: () => level.dislikeCount },
+      ];
 
-      const paintLike = () => {
-        like.classList.toggle('liked', Boolean(level.isLiked));
-        like.textContent = level.isLiked
-          ? `♥ 已赞 ${formatCount(level.likeCount)}`
-          : `♡ 点赞 ${formatCount(level.likeCount)}`;
+      const buttons = TYPES.map(t => el('button', {
+        class: 'button feedback-button',
+        type: 'button',
+        dataset: { type: t.key },
+      }));
+
+      const paint = () => {
+        buttons.forEach((btn, i) => {
+          const t = TYPES[i];
+          const active = level.myFeedback === t.key;
+          btn.classList.toggle('active', active);
+          btn.textContent = `${active ? t.icon : t.icon} ${t.label} ${formatCount(t.count())}`;
+        });
       };
-      paintLike();
+      paint();
 
-      like.addEventListener('click', async () => {
-        like.disabled = true;
+      buttons.forEach(btn => btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        const type = btn.dataset.type;
+        buttons.forEach(b => b.disabled = true);
         try {
-          const result = await toggleLike(level.id);
-          level.isLiked = result.isLiked;
+          const result = await setFeedback(level.id, type);
+          level.myFeedback = result.myFeedback;
           level.likeCount = result.likeCount;
-          paintLike();
+          level.whatCount = result.whatCount;
+          level.dislikeCount = result.dislikeCount;
+          paint();
         } catch (error) {
           showBox(document.getElementById('launch-hint'), describeError(error), 'error');
         } finally {
-          like.disabled = false;
+          buttons.forEach(b => b.disabled = false);
         }
-      });
+      }));
+
+      // 游玩资格：getMyBest 返回 null 说明没成绩（没玩过），评价按钮置灰。
+      // 401（未登录）时也置灰——未登录必然没玩过。不阻塞首屏：按钮先画好，结果回来再禁用。
+      getMyBest(level.id).then(result => {
+        if (!result) disableFeedback('必须游玩后才能评价');
+      }).catch(() => disableFeedback('必须游玩后才能评价'));
+
+      function disableFeedback(title) {
+        buttons.forEach(b => { b.disabled = true; b.title = title; });
+      }
 
       const play = el('button', { class: 'button primary', type: 'button' }, '在 Anoawa 中游玩');
       play.addEventListener('click', () => launchClient(level.id));
 
-      const actions = el('div', { class: 'hero-actions' }, play, like);
+      const actions = el('div', { class: 'hero-actions' }, play, ...buttons);
 
       // 编辑入口只对上传者和管理员显示。要拿 profile 里的 id 和 isAdmin，
       // 而 localStorage 里存的那份只有昵称和头像，所以得请求一次。
