@@ -14,12 +14,15 @@ export const MAX_PAGE_SIZE = 50;
 /** 后端 PaginateAsync 认得的排序字段，其余值会落到默认的 created。 */
 export const SORT_OPTIONS = [
   { value: 'created', label: '最新上传' },
-  { value: 'playCount', label: '游玩次数' },
-  { value: 'likeCount', label: '点赞数' },
   { value: 'updated', label: '最近更新' },
-  { value: 'duration', label: '时长' },
-  { value: 'bpm', label: 'BPM' },
-  { value: 'name', label: '名称' },
+  { value: 'playCount', label: '游玩次数' },
+  { value: 'downloadCount', label: '下载数' },
+  { value: 'likeCount', label: '点赞数' },
+  { value: 'whatCount', label: '何意味数' },
+  { value: 'dislikeCount', label: '踩数' },
+  { value: 'duration', label: '时长最长' },
+  { value: 'chartConstant', label: '难度最高' },
+  { value: 'bpm', label: 'BPM 最高' },
 ];
 
 /** 与客户端和后端默认一致的每页条数。 */
