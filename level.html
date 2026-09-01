@@ -690,7 +690,9 @@
 
     function renderCurve(curve) {
       const points = curve.points;
-      const wrap = el('div', { class: 'curve-wrap' });
+      // curve 类不能少：app.css 里 .curve-grid-line / .curve-dot 等都是 .curve 后代选择器，
+      // 没有它 SVG 子元素全走默认值（stroke:none / fill:black），在暗色背景上整块漆黑。
+      const wrap = el('div', { class: 'curve curve-wrap' });
       const tooltip = el('div', { class: 'curve-tooltip' });
       wrap.append(tooltip);
 
