@@ -87,23 +87,23 @@ export async function changePassword(email, verificationCode, newPassword) {
  * 三个开关的语义见 Bnoawa/CLAUDE.md 的「账号注销与匿名占位账号」一节，
  * 有两处反直觉的地方必须原样传、不能省：
  *
- * 1. **三个开关都没有 [Required]，缺字段时后端按 true 反序列化**，也就是"全删"。
- *    想保留必须显式发 false。所以这里三个字段一律显式发送，不做任何省略。
+ * 1. **两个开关都没有 [Required]，缺字段时后端按 true 反序列化**，也就是"全删"。
+ *    想保留必须显式发 false。所以这里两个字段一律显式发送，不做任何省略。
  * 2. 保留数据不是"不删"，而是把那些行改挂到一个新建的**匿名占位账号（墓碑）**上。
  *    墓碑在社区里显示成"已注销用户"，成绩和上传的谱面继续可见。
  *
- * 还有一条会让人意外的：deleteLevels = true 时，该用户上传的谱面上**所有人**的
- * 成绩、点赞、游玩历史都会被谱面这一侧的级联带走——包括注销者自己选择保留的那些。
+ * 评价（点赞三态、体感难度票）跟随 deletePlayRecords——它们都需游玩过才能提交，是成绩的
+ * 衍生物。还有一条会让人意外的：deleteLevels = true 时，该用户上传的谱面上**所有人**的
+ * 成绩、评价、游玩历史都会被谱面这一侧的级联带走——包括注销者自己选择保留的那些。
  *
  * @param {string} verificationCode
- * @param {{deleteLevels: boolean, deleteLikes: boolean, deletePlayRecords: boolean}} scope
+ * @param {{deleteLevels: boolean, deletePlayRecords: boolean}} scope
  */
 export function deleteAccount(verificationCode, scope) {
   return post('/api/auth/delete-account', {
     verificationCode: verificationCode.trim(),
-    // 显式发三个布尔值，不能靠省略——省略等于 true
+    // 显式发两个布尔值，不能靠省略——省略等于 true
     deleteLevels: Boolean(scope.deleteLevels),
-    deleteLikes: Boolean(scope.deleteLikes),
     deletePlayRecords: Boolean(scope.deletePlayRecords),
   });
 }

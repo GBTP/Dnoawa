@@ -54,8 +54,9 @@ export function issueProfileToken(profileId) {
 /**
  * 删除一个身份。
  *
- * 三个开关与注销账号完全同义，**同样缺字段即 true（全删）**，所以这里一律显式发送。
+ * 两个开关与注销账号完全同义，**同样缺字段即 true（全删）**，所以这里一律显式发送。
  * 保留的数据会改挂到墓碑（AccountId 为空的身份行），在社区里显示成"已注销用户"。
+ * 评价（点赞三态、体感难度票）跟随 deletePlayRecords——它们都需游玩过才能提交。
  */
 export function deleteProfile(profileId, scope) {
   return request(`/api/profiles/${profileId}`, {
@@ -63,7 +64,6 @@ export function deleteProfile(profileId, scope) {
     account: true,
     body: {
       deleteLevels: Boolean(scope.deleteLevels),
-      deleteLikes: Boolean(scope.deleteLikes),
       deletePlayRecords: Boolean(scope.deletePlayRecords),
     },
   });

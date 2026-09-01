@@ -465,7 +465,7 @@
 
       /**
        * 代传引导。**转让走的是整个身份**，所以必须让人明白不能用主号传完再转让——
-       * 那等于把自己的成绩、点赞和全部作品一起送出去。这条不说清楚会出事。
+       * 那等于把自己的成绩、评价和全部作品一起送出去。这条不说清楚会出事。
        */
       function transferGuide() {
         return el('details', { class: 'transfer-guide' },
@@ -639,7 +639,7 @@
         const codeSlot = el('div', {});
         generate.addEventListener('click', async () => {
           if (!window.confirm(
-            `生成「${item.nickname}」的转让码？\n\n拿到码的人可以把这个身份连同它的全部谱面、成绩、点赞领走，你将无法再访问。`
+            `生成「${item.nickname}」的转让码？\n\n拿到码的人可以把这个身份连同它的全部谱面、成绩与评价领走，你将无法再访问。`
           )) return;
           generate.disabled = true;
           try {
@@ -661,8 +661,7 @@
       // ---------- 删除 ----------
       const scopes = [
         ['deleteLevels', '这个身份上传的谱面'],
-        ['deleteLikes', '这个身份的点赞'],
-        ['deletePlayRecords', '这个身份的成绩与游玩记录'],
+        ['deletePlayRecords', '这个身份的成绩、游玩记录与评价'],
       ];
       const checks = {};
       const scopeList = el('div', { class: 'scope-list' });
@@ -684,7 +683,6 @@
         try {
           await deleteProfile(item.id, {
             deleteLevels: checks.deleteLevels.checked,
-            deleteLikes: checks.deleteLikes.checked,
             deletePlayRecords: checks.deletePlayRecords.checked,
           });
           refresh();
@@ -729,9 +727,8 @@
       const scopes = [
         ['deleteLevels', '我上传的谱面',
          '不删则改挂到「已注销用户」名下，其他玩家仍能下载游玩。'],
-        ['deleteLikes', '我的点赞', '不删则保留，对应谱面的点赞数不变。'],
-        ['deletePlayRecords', '我的成绩与游玩记录',
-         '不删则改挂到「已注销用户」，仍会出现在排行榜上。'],
+        ['deletePlayRecords', '我的成绩、游玩记录与评价',
+         '不删则改挂到「已注销用户」，仍会出现在排行榜上。评价（点赞 / 难度投票）一并保留。'],
       ];
 
       const checks = {};
@@ -756,7 +753,7 @@
           clear(cascade);
           cascade.append(
             el('strong', {}, '删除谱面会连带删掉别人的数据。'),
-            el('p', {}, '其他玩家在你这些谱面上的成绩、点赞和游玩记录都会一并消失，包括你上面选择保留的部分。'),
+            el('p', {}, '其他玩家在你这些谱面上的成绩、评价和游玩记录都会一并消失，包括你上面选择保留的部分。'),
           );
         }
       }
@@ -805,7 +802,6 @@
         try {
           await deleteAccount(code.value, {
             deleteLevels: checks.deleteLevels.checked,
-            deleteLikes: checks.deleteLikes.checked,
             deletePlayRecords: checks.deletePlayRecords.checked,
           });
           // 账号没了，本地凭据也没有意义了
@@ -822,7 +818,7 @@
       panel.append(
         el('div', { class: 'callout error' },
           el('strong', {}, '注销后账号无法恢复。'),
-          el('p', {}, '默认会保留你的谱面、点赞和成绩，改挂到「已注销用户」名下——昵称和头像不再展示，但内容仍留在社区里。想连内容一起删掉，勾选下面的选项。'),
+          el('p', {}, '默认会保留你的谱面、成绩与评价，改挂到「已注销用户」名下——昵称和头像不再展示，但内容仍留在社区里。想连内容一起删掉，勾选下面的选项。'),
         ),
         el('div', { class: 'field' }, el('label', {}, '删除范围'), scopeList),
         cascade,

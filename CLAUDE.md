@@ -20,9 +20,11 @@
 
 ## 后端契约里最容易搞错的几处
 
-**布尔开关缺字段 = true。** `DeleteAccountRequest` / `DeleteProfileRequest` 的三个
-删除范围开关都**没有** `[Required]`，缺字段时按 `true`（全删）反序列化。想保留
-必须显式发 `false`。所有相关调用都显式发三个布尔值，别用「有值才提交」的惯例。
+**布尔开关缺字段 = true。** `DeleteAccountRequest` / `DeleteProfileRequest` 的两个
+删除范围开关（`deleteLevels` / `deletePlayRecords`）都**没有** `[Required]`，缺字段时按
+`true`（全删）反序列化。想保留必须显式发 `false`。所有相关调用都显式发两个布尔值，别用
+「有值才提交」的惯例。评价（点赞三态、体感难度票）跟随 `deletePlayRecords`——它们都需
+游玩过才能提交，是成绩的衍生物，不再单列 `deleteLikes`。
 
 **两种 token 严格互斥。**
 
