@@ -35,7 +35,7 @@
     import { requireLogin, describeError, logout, ApiError } from './js/api.js';
     import {
       getLevel, toggleLike, setFeedback, getLeaderboard, getAroundMe, getMyBest,
-      COMBO_LABELS, STATUS_LABELS, LEADERBOARD_SIZE,
+      getRatingCurve, COMBO_LABELS, STATUS_LABELS, LEADERBOARD_SIZE,
     } from './js/levels.js';
     import { difficultyTier } from './js/songlist.js';
     import { getMyProfile } from './js/users.js';
@@ -85,6 +85,7 @@
       // 必须在 renderLevel 之后：launch-hint 这个节点是 actions() 建出来的
       handleNoAppRedirect();
       loadLeaderboard(id);
+      loadRatingCurve(id);
     }
 
     // ---------- 主体 ----------
@@ -93,7 +94,8 @@
       document.title = `${level.levelName} · Anoawa 社区`;
 
       const hero = el('section', { class: 'hero' });
-      applyTheme(hero, level.themeColor);
+      // --theme 设在共同父容器上：hero 和成绩-定数曲线 section 都要用谱面主题色
+      applyTheme(content, level.themeColor);
 
       const cover = coverImage(level, { alt: `${level.levelName} 封面` });
       if (level.displayDifficulty) {
@@ -137,6 +139,11 @@
       content.append(
         el('h2', { class: 'section-title' }, '排行榜'),
         el('div', { id: 'board' }, el('div', { class: 'skeleton', style: 'height:120px' })),
+      );
+
+      content.append(
+        el('h2', { class: 'section-title' }, '成绩-定数趋势'),
+        el('div', { id: 'curve' }, el('div', { class: 'skeleton', style: 'height:220px' })),
       );
     }
 
@@ -633,6 +640,140 @@
           '只统计联网提交的成绩。离线游玩、开启 Mod 或练习模式的成绩不会上传，' +
           '游戏内看到的最好成绩可能比这里高。'),
       );
+    }
+
+    // ---------- 成绩-定数趋势曲线 ----------
+
+    const CURVE_VW = 720;
+    const CURVE_VH = 240;
+    const CURVE_ML = 46;   // 左留白：Y 轴标签
+    const CURVE_MR = 12;
+    const CURVE_MT = 12;
+    const CURVE_MB = 28;   // 下留白：X 轴标签
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svgEl(tag, attrs = {}, text = '') {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text) node.textContent = text;
+      return node;
+    }
+
+    /**
+     * 成绩-定数趋势曲线。数据已由后端预聚合（800W+ 且投过票的玩家，1W 分档取中位数），
+     * 这里只负责把点画成一条折线。全站第一张图，SVG 无依赖、用谱面自己的 --theme 色。
+     */
+    async function loadRatingCurve(id) {
+      const box = document.getElementById('curve');
+      if (!box) return;
+
+      let curve;
+      try {
+        curve = await getRatingCurve(id);
+      } catch (error) {
+        clear(box);
+        box.append(el('div', { class: 'callout error' }, describeError(error)));
+        return;
+      }
+
+      clear(box);
+      if (!curve.points.length) {
+        box.append(el('div', { class: 'empty' },
+          el('h3', {}, '还没有足够数据'),
+          el('p', {}, '暂无 800 万以上且投过定数的玩家数据。'),
+        ));
+        return;
+      }
+
+      box.append(renderCurve(curve));
+    }
+
+    function renderCurve(curve) {
+      const points = curve.points;
+      const wrap = el('div', { class: 'curve-wrap' });
+      const tooltip = el('div', { class: 'curve-tooltip' });
+      wrap.append(tooltip);
+
+      const svg = svgEl('svg', {
+        viewBox: `0 0 ${CURVE_VW} ${CURVE_VH}`,
+        role: 'img',
+        'aria-label': '成绩-定数趋势图',
+      });
+      wrap.append(svg);
+
+      const plotW = CURVE_VW - CURVE_ML - CURVE_MR;
+      const plotH = CURVE_VH - CURVE_MT - CURVE_MB;
+      const minScore = curve.minScore;
+      // 防止所有成绩都落在下界同一档时 maxScore == minScore → X 轴除零；给一个桶宽的跨度兜底
+      const maxScore = Math.max(curve.maxScore, minScore + 10_000);
+
+      // Y 轴范围：数据中位数的范围上下各留一档，夹到 0~20（定数语义上界）
+      const meds = points.map(p => p.median);
+      let yMin = Math.max(0, Math.floor(Math.min(...meds)) - 1);
+      let yMax = Math.min(20, Math.ceil(Math.max(...meds)) + 1);
+      if (yMax - yMin < 1) { yMin = Math.max(0, yMin - 1); yMax = Math.min(20, yMax + 1); }
+      const ySpan = Math.max(yMax - yMin, 1e-9);
+
+      const xOf = (score) => CURVE_ML + (score - minScore) / (maxScore - minScore) * plotW;
+      const yOf = (median) => CURVE_MT + (1 - (median - yMin) / ySpan) * plotH;
+
+      // Y 轴网格 + 标签（灰阶，隔几个整数一条，避免太密）
+      const yTickStep = Math.max(1, Math.ceil((yMax - yMin) / 5));
+      for (let v = yMin; v <= yMax; v += yTickStep) {
+        const y = yOf(v);
+        svg.append(svgEl('line', {
+          x1: CURVE_ML, y1: y, x2: CURVE_VW - CURVE_MR, y2: y,
+          class: 'curve-grid-line',
+        }));
+        svg.append(svgEl('text', {
+          x: CURVE_ML - 6, y: y + 4, 'text-anchor': 'end', class: 'curve-grid-label',
+        }, String(v)));
+      }
+
+      // X 轴标签：下界 / 中值 / 上界
+      const xTicks = [minScore, Math.round((minScore + maxScore) / 2 / 10000) * 10000, maxScore]
+        .filter((v, i, a) => a.indexOf(v) === i);
+      for (const v of xTicks) {
+        svg.append(svgEl('text', {
+          x: xOf(v), y: CURVE_VH - 8, 'text-anchor': 'middle', class: 'curve-axis-label',
+        }, formatCount(v)));
+      }
+
+      // 折线
+      const linePoints = points.map(p => `${xOf(p.scoreStart)},${yOf(p.median)}`).join(' ');
+      if (points.length > 1) {
+        svg.append(svgEl('polyline', { points: linePoints, class: 'curve-line' }));
+      }
+
+      // 每档一个点 + 一段透明 hover 命中区（占满档位 x 跨度、整高）
+      points.forEach(p => {
+        const x = xOf(p.scoreStart);
+        svg.append(svgEl('circle', { cx: x, cy: yOf(p.median), r: 3, class: 'curve-dot' }));
+
+        const xEnd = Math.min(xOf(p.scoreEnd + 1), CURVE_VW - CURVE_MR);
+        const hit = svgEl('rect', {
+          x: x, y: CURVE_MT, width: Math.max(xEnd - x, 1), height: plotH,
+          fill: 'transparent', class: 'curve-hit',
+        });
+        hit.addEventListener('mousemove', (e) => {
+          tooltip.textContent =
+            `${p.scoreStart.toLocaleString('en-US')}–${p.scoreEnd.toLocaleString('en-US')} 分 · ` +
+            `定数中位数 ${p.median.toFixed(1)} · ${p.playerCount} 人`;
+          tooltip.style.display = 'block';
+          const wr = wrap.getBoundingClientRect();
+          let left = e.clientX - wr.left + 12;
+          left = Math.min(left, wr.width - 140);
+          tooltip.style.left = `${Math.max(left, 8)}px`;
+          tooltip.style.top = `${e.clientY - wr.top + 12}px`;
+        });
+        hit.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+        svg.append(hit);
+      });
+
+      wrap.append(el('p', { class: 'curve-legend' },
+        '横轴：最佳成绩（≥800W） · 纵轴：社区定数中位数 · 悬停查看档位详情'));
+
+      return wrap;
     }
 
     // ---------- 错误页 ----------

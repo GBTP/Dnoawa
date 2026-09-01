@@ -1685,3 +1685,33 @@ a.tag:hover { color: var(--text); border-color: var(--line-strong); }
 /* 分类浏览的标签墙：比选择器更松，是「逛」的入口不是表单控件 */
 .category-wall { display: flex; flex-direction: column; gap: 18px; margin-bottom: 22px; }
 .category-wall[hidden] { display: none; }
+
+/* 成绩-定数趋势曲线 */
+.curve {
+  border: 1px solid var(--line);
+  padding: 18px 16px 12px;
+  margin-bottom: 26px;
+}
+.curve[hidden] { display: none; }
+.curve svg { display: block; width: 100%; height: auto; }
+.curve .curve-axis-label { fill: var(--faint); font-size: 12px; font-family: var(--mono); }
+.curve .curve-grid-line { stroke: var(--line); }
+.curve .curve-grid-label { fill: var(--muted); font-size: 12px; font-family: var(--mono); }
+.curve .curve-line { stroke: var(--theme); fill: none; stroke-width: 2px; stroke-linejoin: round; }
+.curve .curve-dot { fill: var(--theme); }
+.curve-legend { color: var(--muted); font-size: 13px; margin: 0; }
+.curve-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 10px;
+  display: none;
+  white-space: nowrap;
+  z-index: 20;
+}
+.curve-wrap { position: relative; }
+.curve-tooltip b { color: var(--text); }
+.curve-tooltip .tip-label { color: var(--faint); }

@@ -242,6 +242,17 @@ export function getMyBest(id) {
   return get(`/api/levels/${id}/my-best`);
 }
 
+/**
+ * 成绩-定数趋势曲线（后端预聚合）。只统计 800W 以上、且投过定数票的玩家；
+ * 按 1W 分档，档内取定数中位数，不设每档最少人数——单人档也保留。
+ * 仅网页端消费，Unity 客户端不调用。
+ *
+ * @returns {Promise<{points: {scoreStart:number, scoreEnd:number, median:number, playerCount:number}[], minScore:number, maxScore:number}>}
+ */
+export function getRatingCurve(id) {
+  return get(`/api/levels/${id}/rating-curve`);
+}
+
 /** 后端 HotLeaderboardCache.NormalizePeriod 认得的三个周期。 */
 export const HOT_PERIODS = [
   { value: 'day', label: '今日' },
