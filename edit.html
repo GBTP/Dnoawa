@@ -83,17 +83,17 @@
         return;
       }
 
-      // 后端 UpdateLevelAsync 的权限判断是 UploaderId == requesterId || isAdmin，
+      // 后端 UpdateLevelAsync 的权限判断是 UploaderId == requesterId || isVisibilityReviewer，
       // 这里先挡一道，省得填完表单才被 403
-      const canEdit = level.uploaderId === profile.id || profile.isAdmin;
+      const canEdit = level.uploaderId === profile.id || profile.isVisibilityReviewer;
       if (!canEdit) {
         clear(content);
-        renderError('无权编辑', '只有上传者和管理员可以修改这张谱面。');
+        renderError('无权编辑', '只有上传者和可见性审核员可以修改这张谱面。');
         return;
       }
 
       clear(content);
-      renderForm(level, profile.isAdmin);
+      renderForm(level, profile.isVisibilityReviewer);
     }
 
     /**
@@ -119,7 +119,7 @@
       }
     }
 
-    function renderForm(level, isAdmin) {
+    function renderForm(level, isVisibilityReviewer) {
       document.title = `编辑 ${level.levelName} · Anoawa 社区`;
 
       const form = el('form', { class: 'card' });
@@ -134,7 +134,7 @@
 
       // 非管理员改完要重审，这条必须显眼——否则谱师会以为改个错别字
       // 就把自己的谱面从库里弄消失了
-      if (!isAdmin) {
+      if (!isVisibilityReviewer) {
         form.append(el('div', { class: 'callout warning' },
           el('strong', {}, '保存后需要重新审核。'),
           el('p', {}, '修改会把谱面状态改回「审核中」，通过前其他玩家看不到它。'),
@@ -293,7 +293,7 @@
           // 回写基准值：保存成功后 level 还拿着旧值，tagsChanged()/infoChanges() 会继续
           // 报告「已改」直到跳转走（1.2 秒后）。回写让这段时间里的摘要和二次提交都是准的
           Object.assign(level, patch);
-          showBox(status, isAdmin ? '已保存。' : '已保存，谱面重新进入审核队列。', 'success');
+          showBox(status, isVisibilityReviewer ? '已保存。' : '已保存，谱面重新进入审核队列。', 'success');
           setTimeout(() => location.href = `level.html?id=${level.id}`, 1200);
         } catch (error) {
           showBox(status, describeError(error), 'error');

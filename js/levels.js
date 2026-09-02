@@ -78,8 +78,8 @@ export function listMyLevels({ page = 1, pageSize = PAGE_SIZE } = {}) {
 /**
  * 更新谱面。只传要改的字段，null/undefined 的字段后端不动。
  *
- * 重要：**非管理员改完后 Status 会被后端重置为 Pending，需要重新审核**
- * （LevelService.UpdateLevelAsync 末尾的 `if (!isAdmin) level.Status = Pending`）。
+ * 重要：**非可见性审核员改完后 Status 会被后端重置为 Pending，需要重新审核**
+ * （LevelService.UpdateLevelAsync 末尾的 `if (!isVisibilityReviewer) level.Status = Pending`）。
  * 界面上必须讲清楚，否则谱师会以为改个错别字就把自己的谱面从库里弄消失了。
  *
  * durationSeconds 单独提交会 400——它只能跟 musicFileId 一起，

@@ -129,7 +129,7 @@
           copyableValue(String(profile.id))),
       );
 
-      if (profile.isAdmin) meta.append(el('span', { class: 'role-badge' }, '管理员'));
+      if (profile.isVisibilityReviewer) meta.append(el('span', { class: 'role-badge' }, '可见性审核员'));
       if (anonymized) {
         meta.append(el('p', { class: 'profile-sub' }, '该账号已注销，昵称与头像不再展示。'));
       }

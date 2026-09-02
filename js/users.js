@@ -2,7 +2,7 @@
  * 用户资料与个人空间。
  *
  * 自己和别人走的是两套端点，返回的东西也不一样：
- *   自己  GET /api/auth/profile      带邮箱和 isAdmin
+ *   自己  GET /api/auth/profile      带邮箱和角色位（isVisibilityReviewer / isQualityReviewer）
  *         GET /api/levels/mine       **含审核中的谱面**
  *   别人  GET /api/auth/users/{id}   只有公开字段，带 isAnonymized
  *         GET /api/users/{id}/levels **只有已通过的**（LevelService 里写死了 Approved 过滤）
